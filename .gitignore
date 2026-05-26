@@ -1,0 +1,14 @@
+# Build artifacts
+c/crosshair_stats.exe
+c/*.exe
+c/*.o
+
+# OS / editor
+Thumbs.db
+Desktop.ini
+*.swp
+.vscode/
+.idea/
+
+# Local service keys
+web/baas-config.js
