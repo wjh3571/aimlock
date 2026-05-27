@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>aimlock — 조준점 허브</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="premium.css" />
+  <link rel="stylesheet" href="dynamic.css" />
+  <link rel="stylesheet" href="home.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="app-body home-page">
+  <div class="page home-page-inner page-enter">
+    <header class="top">
+      <div class="header-row">
+        <a href="index.html" class="brand">aimlock</a>
+        <nav class="main-nav" aria-label="메인 메뉴">
+          <a href="index.html" class="nav-btn is-active">메인</a>
+          <a href="search.html" class="nav-btn">조준점 검색</a>
+          <a href="creator.html" class="nav-btn">조준점 제작</a>
+        </nav>
+        <div class="auth-area" id="authArea" aria-label="로그인"></div>
+      </div>
+    </header>
+
+    <section class="home-hero page-hero" aria-labelledby="homeTitle">
+      <p class="t-kicker">Valorant Crosshair Hub</p>
+      <h1 id="homeTitle" class="t-display">aimlock</h1>
+      <p class="t-hero-lead">
+        조준점 검색과 제작을 한곳에서 완성합니다. 원하는 스타일을 찾고, 코드를 복사·공유까지 이어서 진행하세요.
+      </p>
+      <div class="home-stats">
+        <div class="home-stat">
+          <span class="t-stat-value">검색</span>
+          <span class="t-stat-label">필터 · 정렬 · 즐겨찾기</span>
+        </div>
+        <div class="home-stat">
+          <span class="t-stat-value">제작</span>
+          <span class="t-stat-label">실시간 미리보기 · 프리셋</span>
+        </div>
+        <div class="home-stat">
+          <span class="t-stat-value">공유</span>
+          <span class="t-stat-label">코드 복사 · 링크 전달</span>
+        </div>
+      </div>
+      <div class="home-actions">
+        <a href="search.html" class="home-btn home-btn-primary">조준점 검색</a>
+        <a href="creator.html" class="home-btn home-btn-secondary">조준점 제작</a>
+      </div>
+    </section>
+
+    <section class="home-shortcuts" aria-labelledby="shortcutsTitle">
+      <div class="section-head">
+        <h2 id="shortcutsTitle" class="t-section">바로가기</h2>
+        <p class="t-section-desc">자주 사용하는 기능으로 바로 이동합니다.</p>
+      </div>
+      <div class="shortcut-grid stagger-in">
+        <a href="search.html" class="shortcut-card surface-card">
+          <span class="shortcut-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+          </span>
+          <span class="t-card-title">조준점 검색</span>
+          <span class="t-caption">제목 · 태그 · 닉네임</span>
+          <span class="shortcut-arrow" aria-hidden="true">→</span>
+        </a>
+        <a href="creator.html" class="shortcut-card surface-card">
+          <span class="shortcut-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
+            </svg>
+          </span>
+          <span class="t-card-title">조준점 제작</span>
+          <span class="t-caption">슬라이더로 직접 제작</span>
+          <span class="shortcut-arrow" aria-hidden="true">→</span>
+        </a>
+        <a href="search.html?sort=popular" class="shortcut-card surface-card">
+          <span class="shortcut-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26" />
+            </svg>
+          </span>
+          <span class="t-card-title">인기 조준점</span>
+          <span class="t-caption">인기순 정렬로 보기</span>
+          <span class="shortcut-arrow" aria-hidden="true">→</span>
+        </a>
+        <a href="search.html" class="shortcut-card surface-card">
+          <span class="shortcut-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+              <rect x="9" y="9" width="11" height="11" rx="2" />
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+            </svg>
+          </span>
+          <span class="t-card-title">코드 · 공유</span>
+          <span class="t-caption">복사 및 링크 전달</span>
+          <span class="shortcut-arrow" aria-hidden="true">→</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="home-features" aria-labelledby="featuresTitle">
+      <div class="section-head">
+        <h2 id="featuresTitle" class="t-section">핵심 기능</h2>
+        <p class="t-section-desc">aimlock이 제공하는 주요 기능입니다.</p>
+      </div>
+      <div class="feature-row stagger-in">
+        <article class="feature-card surface-card">
+          <span class="t-badge">01</span>
+          <h3 class="t-card-title">조준점 검색</h3>
+          <ul class="feature-points">
+            <li>제목 · 태그 · 닉네임</li>
+            <li>타입 필터 · 정렬</li>
+          </ul>
+          <a href="search.html" class="t-link">이동하기 →</a>
+        </article>
+        <article class="feature-card surface-card">
+          <span class="t-badge">02</span>
+          <h3 class="t-card-title">조준점 제작</h3>
+          <ul class="feature-points">
+            <li>실시간 미리보기</li>
+            <li>색상 · 라인 · 점</li>
+          </ul>
+          <a href="creator.html" class="t-link">이동하기 →</a>
+        </article>
+        <article class="feature-card surface-card">
+          <span class="t-badge">03</span>
+          <h3 class="t-card-title">프리셋 관리</h3>
+          <ul class="feature-points">
+            <li>저장 · 불러오기</li>
+            <li>랜덤 생성</li>
+          </ul>
+          <a href="creator.html" class="t-link">이동하기 →</a>
+        </article>
+        <article class="feature-card surface-card">
+          <span class="t-badge">04</span>
+          <h3 class="t-card-title">즐겨찾기 · 코드</h3>
+          <ul class="feature-points">
+            <li>로그인 후 즐겨찾기</li>
+            <li>코드 복사 · 공유</li>
+          </ul>
+          <a href="search.html" class="t-link">이동하기 →</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="home-guide surface-card" aria-labelledby="guideTitle">
+      <div class="section-head">
+        <h2 id="guideTitle" class="t-section">이용 가이드</h2>
+        <p class="t-section-desc">검색부터 제작·공유까지 순서대로 진행하세요.</p>
+      </div>
+      <ol class="usage-steps usage-steps-row stagger-in">
+        <li class="usage-step">
+          <span class="t-step-num">STEP 01</span>
+          <div class="t-card-title">조준점 검색</div>
+          <p class="t-card-body">검색어와 타입 필터, 정렬로 원하는 조준점을 찾습니다.</p>
+        </li>
+        <li class="usage-step">
+          <span class="t-step-num">STEP 02</span>
+          <div class="t-card-title">즐겨찾기</div>
+          <p class="t-card-body">로그인 후 자주 쓰는 조준점을 별표로 모아 둡니다.</p>
+        </li>
+        <li class="usage-step">
+          <span class="t-step-num">STEP 03</span>
+          <div class="t-card-title">조준점 제작</div>
+          <p class="t-card-body">프리셋을 만들고 코드로 저장·관리합니다.</p>
+        </li>
+        <li class="usage-step">
+          <span class="t-step-num">STEP 04</span>
+          <div class="t-card-title">코드 복사 · 공유</div>
+          <p class="t-card-body">복사 버튼과 공유 링크로 바로 전달합니다.</p>
+        </li>
+      </ol>
+    </section>
+  </div>
+
+  <script src="auth-config.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>
