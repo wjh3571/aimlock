@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>aimlock — 조준점 제작</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="creator.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="page">
+    <header class="top">
+      <div class="header-row">
+        <div class="brand">aimlock</div>
+        <nav class="main-nav" aria-label="메인 메뉴">
+          <a href="index.html" class="nav-btn">조준점 검색</a>
+          <a href="creator.html" class="nav-btn is-active">조준점 제작</a>
+        </nav>
+        <div class="auth-area"></div>
+      </div>
+    </header>
+
+    <div class="cr-layout">
+      <!-- ===== Settings Panel ===== -->
+      <aside class="cr-settings">
+
+        <!-- General -->
+        <section class="cr-section is-open">
+          <button type="button" class="cr-section-header">
+            <span>일반 설정</span>
+            <svg class="cr-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cr-section-body">
+            <div class="cr-field">
+              <label class="cr-label">색상</label>
+              <div class="cr-color-row">
+                <input type="color" id="colorPicker" value="#ffffff" class="cr-color-input" />
+                <div class="cr-swatches" id="colorSwatches"></div>
+              </div>
+            </div>
+            <label class="cr-toggle">
+              <input type="checkbox" id="outlineOn" checked />
+              <span class="cr-toggle-track"></span>
+              <span class="cr-toggle-text">Outline</span>
+            </label>
+            <div class="cr-slider" data-depends="outlineOn">
+              <div class="cr-slider-head">
+                <label for="outlineThickness">Outline 두께</label>
+                <span class="cr-slider-val" id="outlineThicknessVal">1</span>
+              </div>
+              <input type="range" id="outlineThickness" min="1" max="4" step="1" value="1" />
+            </div>
+            <div class="cr-slider" data-depends="outlineOn">
+              <div class="cr-slider-head">
+                <label for="outlineOpacity">Outline 투명도</label>
+                <span class="cr-slider-val" id="outlineOpacityVal">0.50</span>
+              </div>
+              <input type="range" id="outlineOpacity" min="0" max="1" step="0.01" value="0.5" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Center Dot -->
+        <section class="cr-section is-open">
+          <button type="button" class="cr-section-header">
+            <span>Center Dot</span>
+            <svg class="cr-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cr-section-body">
+            <label class="cr-toggle">
+              <input type="checkbox" id="dotOn" checked />
+              <span class="cr-toggle-track"></span>
+              <span class="cr-toggle-text">Center Dot 표시</span>
+            </label>
+            <div class="cr-slider" data-depends="dotOn">
+              <div class="cr-slider-head">
+                <label for="dotSize">크기</label>
+                <span class="cr-slider-val" id="dotSizeVal">2</span>
+              </div>
+              <input type="range" id="dotSize" min="1" max="10" step="1" value="2" />
+            </div>
+            <div class="cr-slider" data-depends="dotOn">
+              <div class="cr-slider-head">
+                <label for="dotOpacity">투명도</label>
+                <span class="cr-slider-val" id="dotOpacityVal">1.00</span>
+              </div>
+              <input type="range" id="dotOpacity" min="0" max="1" step="0.01" value="1" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Inner Lines -->
+        <section class="cr-section is-open">
+          <button type="button" class="cr-section-header">
+            <span>Inner Lines</span>
+            <svg class="cr-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cr-section-body">
+            <label class="cr-toggle">
+              <input type="checkbox" id="innerOn" checked />
+              <span class="cr-toggle-track"></span>
+              <span class="cr-toggle-text">Inner Lines 표시</span>
+            </label>
+            <div class="cr-slider" data-depends="innerOn">
+              <div class="cr-slider-head">
+                <label for="innerLength">길이</label>
+                <span class="cr-slider-val" id="innerLengthVal">6</span>
+              </div>
+              <input type="range" id="innerLength" min="0" max="20" step="1" value="6" />
+            </div>
+            <div class="cr-slider" data-depends="innerOn">
+              <div class="cr-slider-head">
+                <label for="innerThickness">두께</label>
+                <span class="cr-slider-val" id="innerThicknessVal">2</span>
+              </div>
+              <input type="range" id="innerThickness" min="1" max="10" step="1" value="2" />
+            </div>
+            <div class="cr-slider" data-depends="innerOn">
+              <div class="cr-slider-head">
+                <label for="innerOffset">오프셋</label>
+                <span class="cr-slider-val" id="innerOffsetVal">3</span>
+              </div>
+              <input type="range" id="innerOffset" min="0" max="25" step="1" value="3" />
+            </div>
+            <div class="cr-slider" data-depends="innerOn">
+              <div class="cr-slider-head">
+                <label for="innerOpacity">투명도</label>
+                <span class="cr-slider-val" id="innerOpacityVal">1.00</span>
+              </div>
+              <input type="range" id="innerOpacity" min="0" max="1" step="0.01" value="1" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Outer Lines -->
+        <section class="cr-section is-open">
+          <button type="button" class="cr-section-header">
+            <span>Outer Lines</span>
+            <svg class="cr-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cr-section-body">
+            <label class="cr-toggle">
+              <input type="checkbox" id="outerOn" />
+              <span class="cr-toggle-track"></span>
+              <span class="cr-toggle-text">Outer Lines 표시</span>
+            </label>
+            <div class="cr-slider" data-depends="outerOn">
+              <div class="cr-slider-head">
+                <label for="outerLength">길이</label>
+                <span class="cr-slider-val" id="outerLengthVal">2</span>
+              </div>
+              <input type="range" id="outerLength" min="0" max="10" step="1" value="2" />
+            </div>
+            <div class="cr-slider" data-depends="outerOn">
+              <div class="cr-slider-head">
+                <label for="outerThickness">두께</label>
+                <span class="cr-slider-val" id="outerThicknessVal">2</span>
+              </div>
+              <input type="range" id="outerThickness" min="1" max="10" step="1" value="2" />
+            </div>
+            <div class="cr-slider" data-depends="outerOn">
+              <div class="cr-slider-head">
+                <label for="outerOffset">오프셋</label>
+                <span class="cr-slider-val" id="outerOffsetVal">10</span>
+              </div>
+              <input type="range" id="outerOffset" min="0" max="40" step="1" value="10" />
+            </div>
+            <div class="cr-slider" data-depends="outerOn">
+              <div class="cr-slider-head">
+                <label for="outerOpacity">투명도</label>
+                <span class="cr-slider-val" id="outerOpacityVal">1.00</span>
+              </div>
+              <input type="range" id="outerOpacity" min="0" max="1" step="0.01" value="1" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Dynamic Error -->
+        <section class="cr-section is-open">
+          <button type="button" class="cr-section-header">
+            <span>Dynamic Error</span>
+            <svg class="cr-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cr-section-body">
+            <div class="cr-slider">
+              <div class="cr-slider-head">
+                <label for="movementError">이동 오차</label>
+                <span class="cr-slider-val" id="movementErrorVal">0.0</span>
+              </div>
+              <input type="range" id="movementError" min="0" max="10" step="0.1" value="0" />
+            </div>
+            <div class="cr-slider">
+              <div class="cr-slider-head">
+                <label for="firingError">사격 오차</label>
+                <span class="cr-slider-val" id="firingErrorVal">0.0</span>
+              </div>
+              <input type="range" id="firingError" min="0" max="10" step="0.1" value="0" />
+            </div>
+          </div>
+        </section>
+
+      </aside>
+
+      <!-- ===== Preview Panel ===== -->
+      <div class="cr-preview-panel">
+
+        <div class="cr-preview-wrap">
+          <div class="cr-preview-area" id="previewArea">
+            <div class="cr-ch" id="chContainer"></div>
+          </div>
+          <div class="cr-sim-row">
+            <button type="button" class="cr-sim-btn" id="simMovement" aria-pressed="false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              이동
+            </button>
+            <button type="button" class="cr-sim-btn" id="simFiring" aria-pressed="false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+              사격
+            </button>
+          </div>
+        </div>
+
+        <div class="cr-code-section">
+          <div class="cr-code-import">
+            <input type="text" id="codeImport" class="cr-code-input" placeholder="조준점 코드 붙여넣기…" autocomplete="off" />
+            <button type="button" id="codeImportBtn" class="cr-code-import-btn">불러오기</button>
+          </div>
+          <div class="cr-code-display">
+            <code id="codeOutput" class="cr-code-text"></code>
+            <button type="button" id="codeCopyBtn" class="cr-code-copy" title="코드 복사">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="cr-actions">
+          <button type="button" class="cr-act-btn" id="resetBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            초기화
+          </button>
+          <button type="button" class="cr-act-btn" id="randomBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="3"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="16" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="16" r="1.5" fill="currentColor"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>
+            랜덤
+          </button>
+          <button type="button" class="cr-act-btn cr-act-primary" id="savePresetBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            프리셋 저장
+          </button>
+        </div>
+
+        <div class="cr-presets-section">
+          <h3 class="cr-presets-title">프로 프리셋</h3>
+          <div class="cr-preset-grid" id="proPresets"></div>
+          <h3 class="cr-presets-title">내 프리셋</h3>
+          <div class="cr-preset-grid" id="userPresets">
+            <p class="cr-preset-empty" id="userPresetsEmpty">저장된 프리셋이 없습니다.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="assertive" hidden></div>
+
+  <script src="creator.js"></script>
+</body>
+</html>
