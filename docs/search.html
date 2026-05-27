@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>aimlock — 조준점 검색</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="premium.css" />
+  <link rel="stylesheet" href="dynamic.css" />
+  <link rel="stylesheet" href="search.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="app-body search-page">
+  <div class="page page-enter">
+    <header class="top">
+      <div class="header-row">
+        <a href="index.html" class="brand">aimlock</a>
+        <nav class="main-nav" aria-label="메인 메뉴">
+          <a href="index.html" class="nav-btn">메인</a>
+          <a href="search.html" class="nav-btn is-active">조준점 검색</a>
+          <a href="creator.html" class="nav-btn">조준점 제작</a>
+        </nav>
+        <div class="auth-area" id="authArea" aria-label="로그인"></div>
+      </div>
+    </header>
+
+    <section class="search-hero page-hero" aria-labelledby="searchHeroTitle">
+      <p class="t-kicker">Browse</p>
+      <h1 id="searchHeroTitle" class="t-display">조준점 검색</h1>
+      <p class="t-hero-lead">제목 · 태그 · 닉네임으로 찾고, 타입 필터와 정렬로 원하는 조준점을 선택하세요.</p>
+      <div class="search-wrap">
+          <span class="search-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            id="searchInput"
+            class="search-input"
+            placeholder="제목, 태그, 닉네임으로 검색…"
+            autocomplete="off"
+          />
+          <button type="button" class="search-clear" id="searchClear" hidden aria-label="검색어 지우기">×</button>
+      </div>
+    </section>
+
+    <div class="search-toolbar">
+      <div class="search-filters-panel surface-card">
+        <nav class="filters" aria-label="필터">
+          <div class="filter-group">
+            <span class="filter-label">타입</span>
+            <div class="chips" id="typeChips" data-filter="type"></div>
+          </div>
+          <div class="filter-group" id="favoritesFilterGroup" hidden>
+            <button type="button" class="chip chip-fav" id="favoritesToggle" aria-pressed="false">
+              <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+              즐겨찾기
+            </button>
+          </div>
+        </nav>
+      </div>
+    </div>
+
+    <div class="search-subbar-panel surface-card subbar">
+      <p class="count" id="countLabel">총 0개가 게시되었어요</p>
+      <div class="sort" role="tablist" aria-label="정렬">
+        <button type="button" class="sort-btn is-active" data-sort="latest" role="tab" aria-selected="true">최신순</button>
+        <button type="button" class="sort-btn" data-sort="popular" role="tab" aria-selected="false">인기순</button>
+      </div>
+    </div>
+
+    <main class="grid" id="cardGrid" aria-live="polite"></main>
+
+    <nav class="pagination" id="pagination" aria-label="페이지" hidden>
+      <button type="button" class="page-btn page-prev" id="pagePrev" disabled>이전</button>
+      <div class="page-numbers" id="pageNumbers"></div>
+      <button type="button" class="page-btn page-next" id="pageNext" disabled>다음</button>
+    </nav>
+
+    <div class="empty-state" id="emptyState" hidden>
+      <p id="emptyTitle">조건에 맞는 조준점이 없습니다.</p>
+      <p class="hint" id="emptyHint">검색어나 필터를 바꿔 보세요.</p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="assertive" hidden></div>
+
+  <script src="auth-config.js"></script>
+  <script src="baas-config.js"></script>
+  <script src="preview.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
