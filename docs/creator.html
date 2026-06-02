@@ -22,7 +22,7 @@
           <a href="search.html" class="nav-btn">조준점 검색</a>
           <a href="creator.html" class="nav-btn is-active">조준점 제작</a>
         </nav>
-        <div class="auth-area"></div>
+        <div class="auth-area" id="authArea" aria-label="로그인"></div>
       </div>
     </header>
 
@@ -275,6 +275,8 @@
 
   <div class="toast" id="toast" role="status" aria-live="assertive" hidden></div>
 
+  <script src="baas-config.js"></script>
+  <script src="auth.js?v=supabase-auth-2"></script>
   <script src="creator.js"></script>
 </body>
 </html>

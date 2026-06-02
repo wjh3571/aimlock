@@ -1,13 +1,19 @@
-const AUTH_STORAGE_KEY = "aimlock_google_user";
+const AUTH_STORAGE_KEY = "aimlock_supabase_user";
+const SUPABASE_JS_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
 
 const authEls = {
   area: document.getElementById("authArea"),
 };
 
-let gsiReady = false;
+let supabaseClient = null;
+let currentUser = null;
 
-function getClientId() {
-  return (window.AIMLOCK_AUTH && window.AIMLOCK_AUTH.googleClientId) || "";
+function getBaasAuthConfig() {
+  const cfg = window.AIMLOCK_BAAS || {};
+  return {
+    supabaseUrl: String(cfg.supabaseUrl || "").replace(/\/+$/, ""),
+    supabaseAnonKey: String(cfg.supabaseAnonKey || ""),
+  };
 }
 
 function isFileOrigin() {
@@ -16,26 +22,29 @@ function isFileOrigin() {
 
 function createLocalUser() {
   return {
-    name: "로컬 사용자",
+    name: "Local user",
     email: "",
     picture: "",
     sub: "local-file-user",
   };
 }
 
-function parseJwt(token) {
-  const base64Url = token.split(".")[1];
-  const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-  const json = decodeURIComponent(
-    atob(base64)
-      .split("")
-      .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-      .join("")
-  );
-  return JSON.parse(json);
+function userFromSession(session) {
+  const user = session && session.user;
+  if (!user) return null;
+
+  const meta = user.user_metadata || {};
+  return {
+    name: meta.full_name || meta.name || user.email || "User",
+    email: user.email || "",
+    picture: meta.avatar_url || meta.picture || "",
+    sub: user.id,
+  };
 }
 
 function loadStoredUser() {
+  if (currentUser) return currentUser;
+
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
@@ -45,121 +54,128 @@ function loadStoredUser() {
 }
 
 function saveUser(user) {
-  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-}
+  currentUser = user;
 
-function clearUser() {
-  localStorage.removeItem(AUTH_STORAGE_KEY);
-}
-
-function showAuthToast(msg) {
-  if (typeof showToast === "function") showToast(msg);
-}
-
-function handleCredentialResponse(response) {
-  try {
-    const payload = parseJwt(response.credential);
-    const user = {
-      name: payload.name || "사용자",
-      email: payload.email || "",
-      picture: payload.picture || "",
-      sub: payload.sub,
-    };
-    saveUser(user);
-    renderAuth(user);
-    notifyAuthChange(user);
-    showAuthToast(`${user.name}님, 환영합니다.`);
-  } catch {
-    showAuthToast("로그인 정보를 처리하지 못했습니다.");
+  if (user) {
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
   }
 }
 
-function loadGsiScript() {
+function showAuthToast(message) {
+  if (typeof showToast === "function") {
+    showToast(message);
+    return;
+  }
+
+  console.info(message);
+}
+
+function notifyAuthChange(user) {
+  if (typeof window.handleAuthStateChange === "function") {
+    window.handleAuthStateChange(user);
+  }
+}
+
+function loadSupabaseScript() {
   return new Promise((resolve, reject) => {
-    if (window.google && window.google.accounts) {
+    if (window.supabase && window.supabase.createClient) {
       resolve();
       return;
     }
+
     const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
+    script.src = SUPABASE_JS_URL;
     script.async = true;
-    script.defer = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Google 로그인 스크립트를 불러오지 못했습니다."));
+    script.onerror = () => reject(new Error("Could not load the Supabase auth script."));
     document.head.appendChild(script);
   });
 }
 
-function initGoogleAuth(clientId) {
-  window.google.accounts.id.initialize({
-    client_id: clientId,
-    callback: handleCredentialResponse,
-    auto_select: false,
-    cancel_on_tap_outside: true,
-  });
-  gsiReady = true;
+async function getSupabaseClient() {
+  if (supabaseClient) return supabaseClient;
+
+  const cfg = getBaasAuthConfig();
+  if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+    throw new Error("Missing Supabase URL or anon key in baas-config.js.");
+  }
+
+  await loadSupabaseScript();
+  supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+  return supabaseClient;
 }
 
-function renderLoggedOut(clientId) {
+function getRedirectUrl() {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+async function signInWithGoogle() {
+  if (isFileOrigin()) {
+    const user = createLocalUser();
+    saveUser(user);
+    renderAuth(user);
+    notifyAuthChange(user);
+    showAuthToast("Signed in locally. Google login works on a deployed HTTPS URL.");
+    return;
+  }
+
+  try {
+    const client = await getSupabaseClient();
+    const { error } = await client.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: getRedirectUrl(),
+        queryParams: {
+          prompt: "select_account",
+        },
+      },
+    });
+
+    if (error) throw error;
+  } catch (error) {
+    console.error("Supabase Google sign-in failed:", error);
+    showAuthToast(error && error.message ? error.message : "Could not start Google login.");
+  }
+}
+
+async function signOut() {
+  try {
+    if (!isFileOrigin()) {
+      const client = await getSupabaseClient();
+      const { error } = await client.auth.signOut();
+      if (error) throw error;
+    }
+  } catch (error) {
+    console.error("Supabase sign-out failed:", error);
+  }
+
+  saveUser(null);
+  renderAuth(null);
+  notifyAuthChange(null);
+  showAuthToast("Signed out.");
+}
+
+function renderLoggedOut() {
+  if (!authEls.area) return;
   authEls.area.innerHTML = "";
 
-  if (isFileOrigin()) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "login-btn";
-    btn.innerHTML = `
-      <svg class="login-btn-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-        <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-      </svg>
-      <span>로컬 로그인</span>
-    `;
-    btn.title = "file://로 열면 Google 로그인이 차단되어 로컬 로그인으로 대체됩니다.";
-    btn.addEventListener("click", () => {
-      const user = createLocalUser();
-      saveUser(user);
-      renderAuth(user);
-      notifyAuthChange(user);
-      showAuthToast("로컬 사용자로 로그인했습니다. Google 로그인은 배포된 https 주소에서 사용할 수 있습니다.");
-    });
-    authEls.area.appendChild(btn);
-    return;
-  }
-
-  if (!clientId) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "login-btn";
-    btn.innerHTML = `
-      <svg class="login-btn-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-        <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-      </svg>
-      <span>로그인</span>
-    `;
-    btn.addEventListener("click", () => {
-      showAuthToast("auth-config.js에 Google 클라이언트 ID를 설정해 주세요.");
-    });
-    authEls.area.appendChild(btn);
-    return;
-  }
-
-  const btnHost = document.createElement("div");
-  btnHost.className = "google-btn-host";
-  authEls.area.appendChild(btnHost);
-
-  if (gsiReady) {
-    window.google.accounts.id.renderButton(btnHost, {
-      type: "standard",
-      theme: "filled_black",
-      size: "medium",
-      text: "signin",
-      shape: "pill",
-      locale: "ko",
-      width: 100,
-    });
-  }
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "login-btn";
+  btn.innerHTML = `
+    <svg class="login-btn-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+    </svg>
+    <span>Login</span>
+  `;
+  btn.addEventListener("click", signInWithGoogle);
+  authEls.area.appendChild(btn);
 }
 
 function renderLoggedIn(user) {
+  if (!authEls.area) return;
   authEls.area.innerHTML = "";
 
   const profile = document.createElement("div");
@@ -183,63 +199,58 @@ function renderLoggedIn(user) {
   const logoutBtn = document.createElement("button");
   logoutBtn.type = "button";
   logoutBtn.className = "logout-btn";
-  logoutBtn.textContent = "로그아웃";
-  logoutBtn.addEventListener("click", () => {
-    clearUser();
-    if (gsiReady && window.google && window.google.accounts) {
-      window.google.accounts.id.disableAutoSelect();
-    }
-    renderAuth(null);
-    notifyAuthChange(null);
-    showAuthToast("로그아웃했습니다.");
-  });
+  logoutBtn.textContent = "Logout";
+  logoutBtn.addEventListener("click", signOut);
 
   authEls.area.appendChild(profile);
   authEls.area.appendChild(logoutBtn);
 }
 
-function notifyAuthChange(user) {
-  if (typeof window.handleAuthStateChange === "function") {
-    window.handleAuthStateChange(user);
-  }
-}
-
 function renderAuth(user) {
-  const clientId = getClientId();
   if (user) {
     renderLoggedIn(user);
   } else {
-    renderLoggedOut(clientId);
+    renderLoggedOut();
+  }
+}
+
+function syncUserFromSession(session, showWelcome = false) {
+  const user = userFromSession(session);
+  saveUser(user);
+  renderAuth(user);
+  notifyAuthChange(user);
+
+  if (showWelcome && user) {
+    showAuthToast(`Welcome, ${user.name}.`);
   }
 }
 
 async function initAuth() {
   if (!authEls.area) return;
 
-  const clientId = getClientId();
   const stored = loadStoredUser();
   renderAuth(stored);
   notifyAuthChange(stored);
 
   if (isFileOrigin()) return;
-  if (!clientId) return;
 
   try {
-    await loadGsiScript();
-    initGoogleAuth(clientId);
-    if (!stored) renderLoggedOut(clientId);
-  } catch {
-    if (!stored) {
-      authEls.area.innerHTML = "";
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "login-btn";
-      btn.textContent = "로그인";
-      btn.addEventListener("click", () => {
-        showAuthToast("Google 로그인을 불러오지 못했습니다. 네트워크를 확인해 주세요.");
-      });
-      authEls.area.appendChild(btn);
-    }
+    const client = await getSupabaseClient();
+    const {
+      data: { session },
+      error,
+    } = await client.auth.getSession();
+
+    if (error) throw error;
+    syncUserFromSession(session);
+
+    client.auth.onAuthStateChange((event, session) => {
+      syncUserFromSession(session, event === "SIGNED_IN");
+    });
+  } catch (error) {
+    console.error("Supabase auth initialization failed:", error);
+    if (!stored) renderLoggedOut();
+    showAuthToast(error && error.message ? error.message : "Could not check login state.");
   }
 }
 
