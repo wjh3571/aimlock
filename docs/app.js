@@ -1,4 +1,4 @@
-const FAVORITES_KEY_PREFIX = "aimlock_favorites_";
+﻿const FAVORITES_KEY_PREFIX = "aimlock_favorites_";
 const PAGE_SIZE = 40;
 
 const TYPE_OPTIONS = [
@@ -6,12 +6,12 @@ const TYPE_OPTIONS = [
   { value: "crosshair", label: "십자선" },
   { value: "circle", label: "원형" },
   { value: "square", label: "사각형" },
-  { value: "other", label: "기타" },
 ];
 
 const TYPE_LABEL_MAP = Object.fromEntries(
   TYPE_OPTIONS.filter((o) => o.value !== "all").map((o) => [o.value, o.label])
 );
+const ALLOWED_TYPES = new Set(Object.keys(TYPE_LABEL_MAP));
 const CATEGORY_LABEL_MAP = {
   general: "일반",
   pro: "프로",
@@ -167,6 +167,41 @@ function renderChips(container, options, group, current) {
   });
 }
 
+function normalizeText(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function itemIdentity(item) {
+  const code = normalizeText(item.code).replace(/\s+/g, "");
+  if (code) return `code:${code}`;
+
+  return [
+    normalizeText(item.title),
+    normalizeText(item.author),
+    normalizeText(item.type),
+  ].join("|");
+}
+
+function prepareItems(items) {
+  const seen = new Set();
+  const prepared = [];
+
+  (Array.isArray(items) ? items : []).forEach((raw) => {
+    if (!raw || typeof raw !== "object") return;
+
+    const type = normalizeText(raw.type);
+    if (!ALLOWED_TYPES.has(type)) return;
+
+    const item = { ...raw, type };
+    const key = itemIdentity(item);
+    if (seen.has(key)) return;
+
+    seen.add(key);
+    prepared.push(item);
+  });
+
+  return prepared;
+}
 function relativeTime(iso) {
   const t = new Date(iso).getTime();
   const diff = Date.now() - t;
@@ -349,13 +384,16 @@ function applyFilters(resetPage = false) {
     const tagsEl = body.querySelector(".card-tags");
     const typeTag = TYPE_LABEL_MAP[item.type] || item.type;
     const catTag = CATEGORY_LABEL_MAP[item.category] || item.category;
-    [typeTag, catTag].forEach((text) => {
-      const span = document.createElement("span");
-      span.className = "tag";
-      span.textContent = text;
-      tagsEl.appendChild(span);
+    const visibleTags = [];
+    const seenTags = new Set();
+    [typeTag, catTag, ...(item.tags || [])].forEach((text) => {
+      const label = String(text || "").trim();
+      const key = label.toLowerCase();
+      if (!label || seenTags.has(key)) return;
+      seenTags.add(key);
+      visibleTags.push(label);
     });
-    (item.tags || []).slice(0, 2).forEach((text) => {
+    visibleTags.slice(0, 4).forEach((text) => {
       const span = document.createElement("span");
       span.className = "tag";
       span.textContent = text;
@@ -428,7 +466,7 @@ async function loadData() {
       },
     });
     if (!res.ok) throw new Error("BaaS 데이터를 불러오지 못했습니다.");
-    state.items = await res.json();
+    state.items = prepareItems(await res.json());
     return;
   }
 
