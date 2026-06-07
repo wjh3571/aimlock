@@ -38,16 +38,25 @@ const RANGE_ROWS = [
   { z: -2850, label: "40m", scale: 0.52, moveSpan: 420 },
 ];
 
+const TARGET_SPEED_MIN = 55;
+const TARGET_SPEED_MAX = 270;
+
+function pickTargetSpeed() {
+  return TARGET_SPEED_MIN + Math.random() * (TARGET_SPEED_MAX - TARGET_SPEED_MIN);
+}
+
 function spawnHumanTarget() {
   const tier = RANGE_ROWS[Math.floor(Math.random() * RANGE_ROWS.length)];
-  const speed = (85 + Math.random() * 175) * (Math.random() < 0.5 ? -1 : 1);
+  const fromLeft = Math.random() < 0.5;
+  const speed = pickTargetSpeed();
+  const edgeX = tier.moveSpan * 0.46;
   const bodyH = 62 * tier.scale;
   const bodyW = 36 * tier.scale;
   const y = FLOOR_Y + bodyH * 0.58;
   return {
     id: `human-${Math.random().toString(36).slice(2, 9)}`,
     type: "human",
-    x: (Math.random() - 0.5) * tier.moveSpan * 0.35,
+    x: fromLeft ? -edgeX : edgeX,
     y,
     z: tier.z,
     scale: tier.scale,
@@ -59,7 +68,7 @@ function spawnHumanTarget() {
     r: 30 * tier.scale,
     moveMinX: -tier.moveSpan / 2,
     moveMaxX: tier.moveSpan / 2,
-    moveVelX: speed,
+    moveVelX: fromLeft ? speed : -speed,
     platformH: 0,
     hit: false,
     active: true,
@@ -626,14 +635,10 @@ function updateRangeTargets(dt) {
       t.x += t.moveVelX * dt;
       if (t.x <= t.moveMinX) {
         t.x = t.moveMinX;
-        t.moveVelX = Math.abs(t.moveVelX) * (0.7 + Math.random() * 0.65);
-      }
-      if (t.x >= t.moveMaxX) {
+        t.moveVelX = pickTargetSpeed();
+      } else if (t.x >= t.moveMaxX) {
         t.x = t.moveMaxX;
-        t.moveVelX = -Math.abs(t.moveVelX) * (0.7 + Math.random() * 0.65);
-      }
-      if (Math.random() < dt * 0.12) {
-        t.moveVelX = -t.moveVelX * (0.85 + Math.random() * 0.45);
+        t.moveVelX = -pickTargetSpeed();
       }
     }
   }
@@ -1040,11 +1045,27 @@ function drawFpsScene(ctx, w, h) {
 function drawTargetPad(ctx, t, w, h) {
   const base = worldToScreen(t.x, FLOOR_Y, t.z, w, h);
   if (!base) return;
-  const padW = Math.max(28, 52 * base.scale);
-  ctx.fillStyle = "#f99e1a";
-  ctx.fillRect(base.sx - padW / 2, base.sy - 6, padW, 10);
-  ctx.fillStyle = "rgba(60, 58, 55, 0.35)";
-  ctx.fillRect(base.sx - padW * 0.15, base.sy - 4, padW * 0.3, 16);
+  const padW = Math.max(36, 64 * base.scale);
+  const padH = Math.max(6, 10 * base.scale);
+  ctx.fillStyle = "rgba(249, 158, 26, 0.9)";
+  ctx.fillRect(base.sx - padW / 2, base.sy - padH + 2, padW, padH);
+  ctx.fillStyle = "#2e3138";
+  ctx.fillRect(base.sx - Math.max(2, 3 * base.scale), base.sy - padH + 2, Math.max(4, 6 * base.scale), padH);
+}
+
+function roundRectPath(ctx, x, y, rw, rh, rad) {
+  const r = Math.min(rad, rw / 2, rh / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + rw - r, y);
+  ctx.quadraticCurveTo(x + rw, y, x + rw, y + r);
+  ctx.lineTo(x + rw, y + rh - r);
+  ctx.quadraticCurveTo(x + rw, y + rh, x + rw - r, y + rh);
+  ctx.lineTo(x + r, y + rh);
+  ctx.quadraticCurveTo(x, y + rh, x, y + rh - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 function drawHumanTarget(ctx, t, w, h) {
@@ -1062,40 +1083,89 @@ function drawHumanTarget(ctx, t, w, h) {
   const bodyW = Math.max(18, t.bodyW * sc);
   const bodyH = Math.max(36, t.bodyH * sc);
   const headR = Math.max(10, t.headR * sc);
-  const shoulderW = bodyW * 1.35;
   const cx = bodyP.sx;
   const footY = bodyP.sy + bodyH * 0.42;
   const bodyTop = footY - bodyH;
   const headCy = bodyTop - headR * 0.85;
+  const lw = Math.max(1.5, 2 * sc);
+  const padBase = worldToScreen(t.x, FLOOR_Y, t.z, w, h);
 
   drawTargetPad(ctx, t, w, h);
 
   ctx.save();
   ctx.globalAlpha = t.hit ? Math.max(0.25, t.hitFlash * 0.7) : 1;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
 
-  ctx.fillStyle = "#dfe3ea";
-  ctx.strokeStyle = "#3a3f48";
-  ctx.lineWidth = Math.max(1.5, 2.2 * sc);
+  if (padBase) {
+    ctx.strokeStyle = "#35353a";
+    ctx.lineWidth = Math.max(2.5, 3.5 * sc);
+    ctx.beginPath();
+    ctx.moveTo(cx, padBase.sy - 6);
+    ctx.lineTo(cx, footY + bodyH * 0.04);
+    ctx.stroke();
+  }
 
-  ctx.fillRect(cx - bodyW / 2, bodyTop, bodyW, bodyH * 0.72);
-  ctx.strokeRect(cx - bodyW / 2, bodyTop, bodyW, bodyH * 0.72);
+  const legW = bodyW * 0.24;
+  const legH = bodyH * 0.3;
+  const legTop = footY - legH;
+  ctx.fillStyle = "#b83824";
+  ctx.fillRect(cx - bodyW * 0.3, legTop, legW, legH);
+  ctx.fillRect(cx + bodyW * 0.06, legTop, legW, legH);
 
-  ctx.fillRect(cx - shoulderW / 2, bodyTop + bodyH * 0.08, shoulderW, bodyH * 0.18);
-  ctx.strokeRect(cx - shoulderW / 2, bodyTop + bodyH * 0.08, shoulderW, bodyH * 0.18);
+  const torsoX = cx - bodyW * 0.52;
+  const torsoY = bodyTop + bodyH * 0.1;
+  const torsoW = bodyW * 1.04;
+  const torsoH = bodyH * 0.52;
+  const torsoGrad = ctx.createLinearGradient(cx, torsoY, cx, torsoY + torsoH);
+  torsoGrad.addColorStop(0, "#ff7049");
+  torsoGrad.addColorStop(1, "#d93a22");
+  ctx.fillStyle = torsoGrad;
+  roundRectPath(ctx, torsoX, torsoY, torsoW, torsoH, bodyW * 0.14);
+  ctx.fill();
+  ctx.strokeStyle = "#8f2615";
+  ctx.lineWidth = lw;
+  ctx.stroke();
 
-  ctx.fillRect(cx - bodyW * 0.22, footY - bodyH * 0.08, bodyW * 0.18, bodyH * 0.38);
-  ctx.fillRect(cx + bodyW * 0.04, footY - bodyH * 0.08, bodyW * 0.18, bodyH * 0.38);
+  ctx.fillStyle = "#ff7049";
+  roundRectPath(ctx, cx - bodyW * 0.66, bodyTop + bodyH * 0.06, bodyW * 1.32, bodyH * 0.16, bodyW * 0.08);
+  ctx.fill();
+  ctx.strokeStyle = "#8f2615";
+  ctx.stroke();
 
+  const bullCy = bodyTop + bodyH * 0.3;
+  const bullR = bodyW * 0.24;
+  ctx.fillStyle = "#fff6ee";
+  ctx.beginPath();
+  ctx.arc(cx, bullCy, bullR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#2a2a2e";
+  ctx.lineWidth = lw * 0.75;
+  ctx.stroke();
+  ctx.fillStyle = "#f99e1a";
+  ctx.beginPath();
+  ctx.arc(cx, bullCy, bullR * 0.58, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.arc(cx, bullCy, bullR * 0.22, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#3a4048";
   ctx.beginPath();
   ctx.arc(cx, headCy, headR, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = "#1e2126";
+  ctx.lineWidth = lw;
   ctx.stroke();
-
-  ctx.fillStyle = "#f99e1a";
-  ctx.fillRect(cx - bodyW * 0.28, bodyTop + bodyH * 0.2, bodyW * 0.56, bodyH * 0.16);
-
   ctx.fillStyle = "#4ebabf";
-  ctx.fillRect(cx - headR * 0.55, headCy - headR * 0.15, headR * 1.1, headR * 0.35);
+  roundRectPath(ctx, cx - headR * 0.68, headCy - headR * 0.14, headR * 1.36, headR * 0.3, headR * 0.08);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.28)";
+  ctx.lineWidth = lw * 0.65;
+  ctx.beginPath();
+  ctx.arc(cx, headCy, headR * 1.12, 0, Math.PI * 2);
+  ctx.stroke();
 
   if (t.hit && t.hitFlash > 0) {
     ctx.fillStyle = `rgba(255, 255, 255, ${t.hitFlash * 0.55})`;
