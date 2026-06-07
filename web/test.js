@@ -1059,9 +1059,9 @@ function drawHumanTarget(ctx, t, w, h) {
   if (!bodyP || bodyP.sx < -160 || bodyP.sx > w + 160 || bodyP.sy < -160 || bodyP.sy > h + 160) return;
 
   const sc = bodyP.scale;
-  const bodyW = Math.max(18, target.bodyW * sc);
-  const bodyH = Math.max(36, target.bodyH * sc);
-  const headR = Math.max(10, target.headR * sc);
+  const bodyW = Math.max(18, t.bodyW * sc);
+  const bodyH = Math.max(36, t.bodyH * sc);
+  const headR = Math.max(10, t.headR * sc);
   const shoulderW = bodyW * 1.35;
   const cx = bodyP.sx;
   const footY = bodyP.sy + bodyH * 0.42;
@@ -1170,20 +1170,21 @@ function drawFallbackCrosshair(ctx, cx, cy, arm) {
 function drawCrosshairOverlay(ctx, w, h) {
   if (!testState.running) return;
   const code = testState.crosshairCode || DEFAULT_CROSSHAIR;
-  const chSize = Math.max(48, Math.round(Math.min(w, h) * 0.12));
+  const chSize = Math.max(56, Math.round(Math.min(w, h) * 0.14));
   const cx = w / 2;
   const cy = h / 2;
+  const arm = Math.max(8, chSize * 0.2);
+
+  drawFallbackCrosshair(ctx, cx, cy, arm);
 
   ctx.save();
   try {
     if (typeof drawCrosshair === "function") {
       ctx.translate(cx - chSize / 2, cy - chSize / 2);
       drawCrosshair(ctx, code, chSize);
-    } else {
-      drawFallbackCrosshair(ctx, cx, cy, chSize * 0.22);
     }
   } catch {
-    drawFallbackCrosshair(ctx, cx, cy, chSize * 0.22);
+    /* fallback already drawn */
   }
   ctx.restore();
 }
@@ -1330,11 +1331,23 @@ function renderFrame() {
     for (const t of testState.rangeTargets) drawList.push(t);
   }
   drawList.sort((a, b) => b.z - a.z);
-  for (const t of drawList) drawBotDummy(ctx, t, w, h);
+  for (const t of drawList) {
+    try {
+      drawBotDummy(ctx, t, w, h);
+    } catch (err) {
+      console.error("Aimlock target draw error:", err);
+    }
+  }
 
   drawImpacts(ctx, w, h);
   ctx.restore();
-  drawCrosshairOverlay(ctx, w, h);
+
+  try {
+    drawCrosshairOverlay(ctx, w, h);
+  } catch (err) {
+    console.error("Aimlock crosshair draw error:", err);
+    drawFallbackCrosshair(ctx, w / 2, h / 2, 12);
+  }
   drawWeaponView(ctx, w, h);
   drawMovementHud(ctx, w, h);
   drawTargetDistanceHud(ctx, w, h);
