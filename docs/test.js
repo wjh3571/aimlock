@@ -28,9 +28,27 @@ const PLAYER = {
   speed: 420,
   boundsX: [-620, 620],
   boundsZ: [-120, 200],
+  floorZOffset: 420,
 };
 
-/** OW 훈련장 거리 구간 */
+/** 플레이어와 동일한 키·비율의 표적 실루엣 */
+const HUMAN = {
+  height: PLAYER.eyeY - FLOOR_Y + 24,
+  get bodyH() {
+    return this.height * 0.68;
+  },
+  get bodyW() {
+    return this.height * 0.34;
+  },
+  get headR() {
+    return this.height * 0.105;
+  },
+  anchorY: FLOOR_Y + (PLAYER.eyeY - FLOOR_Y + 24) * 0.52,
+};
+
+const TARGET_MOVE_SPAN = 560;
+
+/** OW 훈련장 거리 구간 (바닥 라벨용) */
 const RANGE_ROWS = [
   { z: -1050, label: "10m", scale: 0.92, moveSpan: 540 },
   { z: -1650, label: "20m", scale: 0.76, moveSpan: 500 },
@@ -45,29 +63,50 @@ function pickTargetSpeed() {
   return TARGET_SPEED_MIN + Math.random() * (TARGET_SPEED_MAX - TARGET_SPEED_MIN);
 }
 
+function getPlayerFloorZ() {
+  return testState.posZ + PLAYER.floorZOffset;
+}
+
+function getTargetLaneZ() {
+  return getPlayerFloorZ();
+}
+
+function formatTargetDistanceMeters() {
+  const depth = Math.abs(getTargetLaneZ() - testState.posZ);
+  const meters = Math.max(1, Math.round(depth / 105));
+  return `${meters}m`;
+}
+
+function buildHumanTargetDims() {
+  return {
+    bodyH: HUMAN.bodyH,
+    bodyW: HUMAN.bodyW,
+    headR: HUMAN.headR,
+    y: HUMAN.anchorY,
+  };
+}
+
 function spawnHumanTarget() {
-  const tier = RANGE_ROWS[Math.floor(Math.random() * RANGE_ROWS.length)];
+  const laneZ = getTargetLaneZ();
   const fromLeft = Math.random() < 0.5;
   const speed = pickTargetSpeed();
-  const edgeX = tier.moveSpan * 0.46;
-  const bodyH = 62 * tier.scale;
-  const bodyW = 36 * tier.scale;
-  const y = FLOOR_Y + bodyH * 0.58;
+  const edgeX = TARGET_MOVE_SPAN * 0.46;
+  const dims = buildHumanTargetDims();
   return {
     id: `human-${Math.random().toString(36).slice(2, 9)}`,
     type: "human",
     x: fromLeft ? -edgeX : edgeX,
-    y,
-    z: tier.z,
-    scale: tier.scale,
-    distLabel: tier.label,
-    distM: parseInt(tier.label, 10),
-    bodyH,
-    bodyW,
-    headR: 15 * tier.scale,
-    r: 30 * tier.scale,
-    moveMinX: -tier.moveSpan / 2,
-    moveMaxX: tier.moveSpan / 2,
+    y: dims.y,
+    z: laneZ,
+    scale: 1,
+    distLabel: formatTargetDistanceMeters(),
+    distM: parseInt(formatTargetDistanceMeters(), 10) || 1,
+    bodyH: dims.bodyH,
+    bodyW: dims.bodyW,
+    headR: dims.headR,
+    r: dims.headR * 2,
+    moveMinX: -TARGET_MOVE_SPAN / 2,
+    moveMaxX: TARGET_MOVE_SPAN / 2,
     moveVelX: fromLeft ? speed : -speed,
     platformH: 0,
     hit: false,
@@ -210,6 +249,8 @@ const testState = {
   autoFireTimer: null,
   holdingFire: false,
   hits: 0,
+  headHits: 0,
+  bodyHits: 0,
   shots: 0,
   reactionTimes: [],
   targetSpawnAt: 0,
@@ -632,6 +673,8 @@ function updateRangeTargets(dt) {
     }
 
     if (!t.hit && testState.running) {
+      t.z = getTargetLaneZ();
+      t.distLabel = formatTargetDistanceMeters();
       t.x += t.moveVelX * dt;
       if (t.x <= t.moveMinX) {
         t.x = t.moveMinX;
@@ -748,14 +791,19 @@ function humanScreenBounds(target, bodyP) {
   return { cx, bodyTop, footY, bodyW, bodyH, headR, headCy };
 }
 
-function pointInHumanScreen(sx, sy, b) {
-  if (Math.hypot(sx - b.cx, sy - b.headCy) <= b.headR * 1.25) return true;
+function classifyHumanHit(sx, sy, b) {
+  if (Math.hypot(sx - b.cx, sy - b.headCy) <= b.headR * 1.25) return "head";
   const halfW = b.bodyW * 0.58;
-  if (sx >= b.cx - halfW && sx <= b.cx + halfW && sy >= b.bodyTop && sy <= b.footY) return true;
+  if (sx >= b.cx - halfW && sx <= b.cx + halfW && sy >= b.bodyTop && sy <= b.footY) return "body";
   const shHalf = b.bodyW * 0.72;
   const shTop = b.bodyTop + b.bodyH * 0.08;
   const shBot = shTop + b.bodyH * 0.2;
-  return sx >= b.cx - shHalf && sx <= b.cx + shHalf && sy >= shTop && sy <= shBot;
+  if (sx >= b.cx - shHalf && sx <= b.cx + shHalf && sy >= shTop && sy <= shBot) return "body";
+  return null;
+}
+
+function pointInHumanScreen(sx, sy, b) {
+  return classifyHumanHit(sx, sy, b) !== null;
 }
 
 function rayHitHumanDetailed(ray, target, viewW, viewH) {
@@ -768,8 +816,9 @@ function rayHitHumanDetailed(ray, target, viewW, viewH) {
   const bodyScreen = worldToScreen(target.x, target.y, target.z, viewW, viewH);
   if (!hitScreen || !bodyScreen) return { hit: false };
   const bounds = humanScreenBounds(target, bodyScreen);
-  if (!pointInHumanScreen(hitScreen.sx, hitScreen.sy, bounds)) return { hit: false };
-  return { hit: true, t, x: wx, y: wy, z: target.z };
+  const hitZone = classifyHumanHit(hitScreen.sx, hitScreen.sy, bounds);
+  if (!hitZone) return { hit: false };
+  return { hit: true, hitZone, t, x: wx, y: wy, z: target.z };
 }
 
 function rayHitTargetDetailed(ray, target, viewW, viewH) {
@@ -802,6 +851,7 @@ function fireBullet() {
   const spread = getSpreadRadius(testState.weapon, testState.shotCount, testState.zoomed);
   const ray = getAimRay(spread, w, h);
   let hit = false;
+  let hitZone = null;
   let impactPoint = null;
 
   const checkList = getActiveTargets();
@@ -810,8 +860,11 @@ function fireBullet() {
     const hitInfo = rayHitTargetDetailed(ray, t, w, h);
     if (hitInfo.hit) {
       hit = true;
+      hitZone = hitInfo.hitZone || null;
       impactPoint = { x: hitInfo.x, y: hitInfo.y, z: hitInfo.z };
       testState.hits += 1;
+      if (hitZone === "head") testState.headHits += 1;
+      else if (hitZone === "body") testState.bodyHits += 1;
       if (testState.mode === "spray") {
         /* wall target stays */
       } else {
@@ -1033,7 +1086,7 @@ function drawFpsScene(ctx, w, h) {
     ctx.fillText(row.label, label.sx, label.sy + 2);
   }
 
-  const playerFoot = worldToScreen(testState.posX, FLOOR_Y, testState.posZ + 50, w, h);
+  const playerFoot = worldToScreen(testState.posX, FLOOR_Y, getPlayerFloorZ(), w, h);
   if (playerFoot && testState.running) {
     ctx.fillStyle = "rgba(78, 186, 191, 0.22)";
     ctx.beginPath();
@@ -1449,6 +1502,17 @@ function updateStatsUI() {
   testEls.statAccuracy.textContent = formatPct(accuracyPct());
   testEls.statReaction.textContent = formatMs(avgReactionTime());
 
+  if (testEls.statHeadHits) {
+    testEls.statHeadHits.textContent = String(testState.headHits);
+  }
+  if (testEls.statBodyHits) {
+    testEls.statBodyHits.textContent = String(testState.bodyHits);
+  }
+  if (testEls.statHeadPct) {
+    const headPct = testState.hits ? (testState.headHits / testState.hits) * 100 : 0;
+    testEls.statHeadPct.textContent = testState.hits ? formatPct(headPct) : "—";
+  }
+
   const best = loadBestRecord(testState.mode, testState.weapon);
   if (testEls.statBest) {
     if (!best) {
@@ -1549,10 +1613,29 @@ function showResultOverlay() {
 
   if (testState.mode === "reaction") {
     title = "반응속도 테스트 결과";
-    lines.push(`명중: ${testState.hits}회`, `발사: ${testState.shots}발`, `평균 반응속도: ${formatMs(avgReactionTime())}`, `명중률: ${formatPct(accuracyPct())}`);
+    lines.push(
+      `명중: ${testState.hits}회 (헤드 ${testState.headHits} · 바디 ${testState.bodyHits})`,
+      `발사: ${testState.shots}발`,
+      `평균 반응속도: ${formatMs(avgReactionTime())}`,
+      `명중률: ${formatPct(accuracyPct())}`
+    );
   } else if (testState.mode === "accuracy") {
     title = "정확도 테스트 결과";
-    lines.push(`명중률: ${formatPct(accuracyPct())}`, `소요 시간: ${formatMs(testState.elapsedMs)}`, `명중: ${testState.hits} / ${testState.targetsTotal}`, `발사: ${testState.shots}발`);
+    lines.push(
+      `명중률: ${formatPct(accuracyPct())}`,
+      `헤드 ${testState.headHits} · 바디 ${testState.bodyHits}`,
+      `소요 시간: ${formatMs(testState.elapsedMs)}`,
+      `명중: ${testState.hits} / ${testState.targetsTotal}`,
+      `발사: ${testState.shots}발`
+    );
+  } else if (testState.mode === "practice") {
+    title = "훈련장 연습 결과";
+    lines.push(
+      `명중: ${testState.hits}회 (헤드 ${testState.headHits} · 바디 ${testState.bodyHits})`,
+      `발사: ${testState.shots}발`,
+      `명중률: ${formatPct(accuracyPct())}`,
+      `헤드샷 비율: ${testState.hits ? formatPct((testState.headHits / testState.hits) * 100) : "—"}`
+    );
   } else {
     title = "연사 테스트 결과";
     lines.push(`명중률: ${formatPct(accuracyPct())}`, `탄착군 분포: ±${calcSpreadRadius().toFixed(0)}px`, `발사: ${testState.shots}발`, `명중: ${testState.hits}발`);
@@ -1608,6 +1691,8 @@ function clearTestSession() {
   testState.velX = 0;
   testState.velZ = 0;
   testState.hits = 0;
+  testState.headHits = 0;
+  testState.bodyHits = 0;
   testState.shots = 0;
   testState.reactionTimes = [];
   testState.targets = [];
@@ -1862,6 +1947,9 @@ function initTestPage() {
   testEls.statHits = document.getElementById("statHits");
   testEls.statShots = document.getElementById("statShots");
   testEls.statAccuracy = document.getElementById("statAccuracy");
+  testEls.statHeadHits = document.getElementById("statHeadHits");
+  testEls.statBodyHits = document.getElementById("statBodyHits");
+  testEls.statHeadPct = document.getElementById("statHeadPct");
   testEls.statReaction = document.getElementById("statReaction");
   testEls.statBest = document.getElementById("statBest");
   testEls.statExtraRow = document.getElementById("statExtraRow");
