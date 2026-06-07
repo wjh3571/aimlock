@@ -35,67 +35,57 @@
 
     <section id="viewTest" class="test-view" aria-label="조준점 테스트">
       <div class="test-layout">
-        <aside class="test-panel test-panel-left surface-card">
-          <h2 class="test-panel-title">설정</h2>
-
-          <div class="test-section">
-            <h3 class="test-section-label">총기 선택</h3>
-            <div class="test-options" id="testWeaponGroup"></div>
-          </div>
-
-          <div class="test-section">
-            <h3 class="test-section-label">테스트 모드</h3>
-            <div class="test-options" id="testModeGroup"></div>
-          </div>
-
-          <div class="test-section">
-            <h3 class="test-section-label">마우스 감도</h3>
-            <div class="test-sens-row">
-              <input type="range" class="test-sens-slider" id="testSensSlider" min="25" max="300" step="5" value="100" aria-label="마우스 감도" />
-              <output class="test-sens-value" id="testSensValue" for="testSensSlider">100%</output>
+        <div class="test-main">
+          <div class="test-settings-dock surface-card">
+            <div class="test-settings-top">
+              <div class="test-settings-block">
+                <h3 class="test-section-label">총기</h3>
+                <div class="test-options test-options-compact" id="testWeaponGroup"></div>
+              </div>
+              <div class="test-settings-block">
+                <h3 class="test-section-label">모드</h3>
+                <div class="test-options test-options-compact" id="testModeGroup"></div>
+              </div>
+              <div class="test-settings-block test-settings-block-sens">
+                <h3 class="test-section-label">감도</h3>
+                <div class="test-sens-row">
+                  <input type="range" class="test-sens-slider" id="testSensSlider" min="25" max="300" step="5" value="100" aria-label="마우스 감도" />
+                  <output class="test-sens-value" id="testSensValue" for="testSensSlider">100%</output>
+                </div>
+              </div>
+              <div class="test-settings-block test-settings-block-actions">
+                <h3 class="test-section-label">조작</h3>
+                <div class="test-actions test-actions-inline">
+                  <button type="button" class="test-btn test-btn-primary" id="testStartBtn">시작</button>
+                  <button type="button" class="test-btn" id="testRestartBtn">재시작</button>
+                  <button type="button" class="test-btn test-btn-danger" id="testStopBtn">종료</button>
+                </div>
+                <p class="test-controls-hint">WASD · 마우스 조준 · 좌클릭 · ESC</p>
+              </div>
             </div>
-            <p class="test-sens-hint">100%가 기본값입니다. 게임 감도에 맞게 조절하세요.</p>
+            <details class="test-crosshair-details">
+              <summary class="test-crosshair-summary">적용 조준점</summary>
+              <div class="test-crosshair-body">
+                <div class="test-crosshair-row">
+                  <img id="testCrosshairPreview" class="test-crosshair-thumb" alt="" width="56" height="56" />
+                  <p class="test-crosshair-hint">검색·제작에서 복사한 조준점이 자동 적용됩니다.</p>
+                </div>
+                <textarea id="testCrosshairCode" class="test-crosshair-input" rows="2" placeholder="조준점 코드 붙여넣기…"></textarea>
+                <button type="button" class="test-btn test-btn-sm" id="testCrosshairApply">조준점 적용</button>
+              </div>
+            </details>
           </div>
 
-          <div class="test-section test-controls-section">
-            <h3 class="test-section-label">조작</h3>
-            <div class="test-controls-grid" aria-hidden="true">
-              <span class="test-key test-key-empty"></span>
-              <span class="test-key">W</span>
-              <span class="test-key test-key-empty"></span>
-              <span class="test-key">A</span>
-              <span class="test-key">S</span>
-              <span class="test-key">D</span>
-            </div>
-            <p class="test-controls-hint">WASD 이동 · 마우스 조준 · 좌클릭 발사 · ESC 종료</p>
-          </div>
-
-          <div class="test-actions">
-            <button type="button" class="test-btn test-btn-primary" id="testStartBtn">시작</button>
-            <button type="button" class="test-btn" id="testRestartBtn">재시작</button>
-            <button type="button" class="test-btn test-btn-danger" id="testStopBtn">종료</button>
-          </div>
-
-          <div class="test-section test-crosshair-section">
-            <h3 class="test-section-label">적용 조준점</h3>
-            <div class="test-crosshair-row">
-              <img id="testCrosshairPreview" class="test-crosshair-thumb" alt="" width="80" height="80" />
-              <p class="test-crosshair-hint">검색·제작에서 복사·테스트한 조준점이 자동 적용됩니다.</p>
-            </div>
-            <textarea id="testCrosshairCode" class="test-crosshair-input" rows="3" placeholder="조준점 코드 붙여넣기…"></textarea>
-            <button type="button" class="test-btn test-btn-sm" id="testCrosshairApply">조준점 적용</button>
-          </div>
-        </aside>
-
-        <div class="test-center">
-          <div class="test-range-wrap surface-card" id="testRangeWrap">
-            <canvas id="testCanvas" class="test-canvas" aria-label="사격장"></canvas>
-            <div class="test-result-overlay" id="testResultOverlay" hidden>
-              <div class="test-result-card">
-                <span class="test-result-badge" id="testResultBadge">🏆 최고 기록!</span>
-                <h3 class="test-result-title" id="testResultTitle">테스트 완료</h3>
-                <div class="test-result-body" id="testResultBody"></div>
-                <button type="button" class="test-btn test-btn-primary" id="testResultClose">확인</button>
+          <div class="test-center">
+            <div class="test-range-wrap surface-card" id="testRangeWrap">
+              <canvas id="testCanvas" class="test-canvas" aria-label="사격장"></canvas>
+              <div class="test-result-overlay" id="testResultOverlay" hidden>
+                <div class="test-result-card">
+                  <span class="test-result-badge" id="testResultBadge">🏆 최고 기록!</span>
+                  <h3 class="test-result-title" id="testResultTitle">테스트 완료</h3>
+                  <div class="test-result-body" id="testResultBody"></div>
+                  <button type="button" class="test-btn test-btn-primary" id="testResultClose">확인</button>
+                </div>
               </div>
             </div>
           </div>
@@ -139,6 +129,6 @@
   <script src="baas-config.js"></script>
   <script src="preview.js"></script>
   <script src="auth.js?v=supabase-auth-2"></script>
-  <script src="test.js?v=aim-range-7"></script>
+  <script src="test.js?v=aim-range-8"></script>
 </body>
 </html>
