@@ -849,10 +849,14 @@ function resizeCanvas() {
   if (!wrap || !canvas) return;
   const rect = wrap.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  const w = Math.max(320, Math.floor(rect.width));
-  const h = Math.max(320, Math.floor(rect.height));
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
+  let w = Math.floor(rect.width);
+  let h = Math.floor(rect.height);
+  if (h < 80 && w > 80) h = Math.round(w * 9 / 16);
+  if (w < 80 && h > 80) w = Math.round(h * 16 / 9);
+  w = Math.max(480, w);
+  h = Math.max(270, h);
+  canvas.width = Math.max(1, Math.floor(w * dpr));
+  canvas.height = Math.max(1, Math.floor(h * dpr));
   canvas.style.width = `${w}px`;
   canvas.style.height = `${h}px`;
   const ctx = canvas.getContext("2d");
@@ -1140,14 +1144,18 @@ function drawImpacts(ctx, w, h) {
 
 function drawCrosshairOverlay(ctx, w, h) {
   if (typeof drawCrosshair !== "function") return;
-  const size = Math.min(w, h) * 0.18;
-  const off = document.createElement("canvas");
-  off.width = 256;
-  off.height = 256;
-  const octx = off.getContext("2d");
-  if (!octx) return;
-  drawCrosshair(octx, testState.crosshairCode, 256);
-  ctx.drawImage(off, (w - size) / 2, (h - size) / 2, size, size);
+  try {
+    const size = Math.min(w, h) * 0.18;
+    const off = document.createElement("canvas");
+    off.width = 256;
+    off.height = 256;
+    const octx = off.getContext("2d");
+    if (!octx) return;
+    drawCrosshair(octx, testState.crosshairCode, 256);
+    ctx.drawImage(off, (w - size) / 2, (h - size) / 2, size, size);
+  } catch {
+    /* 잘못된 조준점 코드여도 사격장은 계속 표시 */
+  }
 }
 
 function drawWeaponView(ctx, w, h) {
@@ -1270,9 +1278,14 @@ function drawHud(ctx, w, h) {
 function renderFrame() {
   const canvas = testEls.canvas;
   if (!canvas) return;
+  let { w, h } = getViewSize();
+  if (w < 10 || h < 10) {
+    resizeCanvas();
+    ({ w, h } = getViewSize());
+    if (w < 10 || h < 10) return;
+  }
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const { w, h } = getViewSize();
 
   ctx.clearRect(0, 0, w, h);
   ctx.save();
@@ -1298,14 +1311,18 @@ function renderFrame() {
 }
 
 function renderLoop(now) {
-  const t = now || performance.now();
-  const dt = Math.min(0.05, (t - lastFrameTime) / 1000);
-  lastFrameTime = t;
-  updateRecoilRecovery(dt);
-  updateScreenShake(dt);
-  updatePlayerMovement(dt);
-  updateRangeTargets(dt);
-  renderFrame();
+  try {
+    const t = now || performance.now();
+    const dt = Math.min(0.05, (t - lastFrameTime) / 1000);
+    lastFrameTime = t;
+    updateRecoilRecovery(dt);
+    updateScreenShake(dt);
+    updatePlayerMovement(dt);
+    updateRangeTargets(dt);
+    renderFrame();
+  } catch (err) {
+    console.error("Aimlock render error:", err);
+  }
   requestAnimationFrame(renderLoop);
 }
 
@@ -1333,7 +1350,7 @@ function updateStatsUI() {
     }
   }
 
-  if (testEls.statExtra) {
+  if (testEls.statExtra && testEls.statExtraRow) {
     if (testState.mode === "accuracy" && testState.running) {
       testEls.statExtraRow.hidden = false;
       testEls.statExtraLabel.textContent = "남은 표적";
@@ -1560,8 +1577,12 @@ function stopTest() {
 }
 
 function syncCrosshairUI() {
-  if (testEls.crosshairPreview && typeof crosshairPreviewDataUrl === "function") {
-    testEls.crosshairPreview.src = crosshairPreviewDataUrl(testState.crosshairCode, "crosshair", 80);
+  try {
+    if (testEls.crosshairPreview && typeof crosshairPreviewDataUrl === "function") {
+      testEls.crosshairPreview.src = crosshairPreviewDataUrl(testState.crosshairCode, "crosshair", 80);
+    }
+  } catch {
+    /* preview 실패해도 사격장은 동작 */
   }
   if (testEls.crosshairCodeInput) {
     testEls.crosshairCodeInput.value = testState.crosshairCode;
@@ -1578,8 +1599,8 @@ function bindWeaponModeSelectors() {
     btn.className = "test-option" + (testState.weapon === key ? " is-active" : "");
     btn.innerHTML = `<span class="test-option-label">${w.label}</span><span class="test-option-desc">${w.desc}</span>`;
     btn.addEventListener("click", () => {
-      if (testState.running) {
-        showTestToast("테스트 중에는 설정을 변경할 수 없습니다.");
+      if (!canChangeSettings()) {
+        showTestToast("FPS 모드 중에는 설정을 변경할 수 없습니다.");
         return;
       }
       testState.weapon = key;
@@ -1745,14 +1766,18 @@ function initTestPage() {
   setOverlayVisible(testEls.resultOverlay, false);
   testState.crosshairCode = loadActiveCrosshair();
   testState.sensitivity = loadSensitivity();
-  syncCrosshairUI();
-  syncSensitivityUI();
   bindWeaponModeSelectors();
   bindSensitivityControls();
   bindMovementKeys();
   bindCanvasEvents();
-  updateStatsUI();
   resizeCanvas();
+  updateStatsUI();
+  syncSensitivityUI();
+  try {
+    syncCrosshairUI();
+  } catch {
+    /* ignore */
+  }
 
   testEls.startBtn?.addEventListener("click", startTest);
   testEls.restartBtn?.addEventListener("click", restartTest);
@@ -1790,6 +1815,9 @@ function initTestPage() {
   });
 
   window.addEventListener("resize", resizeCanvas);
+  requestAnimationFrame(() => {
+    resizeCanvas();
+  });
   renderLoop();
 }
 
