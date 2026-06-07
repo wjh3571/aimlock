@@ -14,12 +14,18 @@ const BEST_RECORD_PREFIX = "aimlock_test_best_";
 const DEFAULT_CROSSHAIR =
   "0;P;c;5;o;1;d;1;0b;0;1b;0;S;c;5;o;1;d;1;0b;0;1b;0;";
 
+const WALL_Z = -1400;
+
 const WEAPONS = {
   vandal: {
     label: "Vandal",
     desc: "연사 · 첫 탄 정확 · 연사 시 탄착군 증가",
     auto: true,
     resetMs: 500,
+    recoilUp: 0.0065,
+    recoilSide: 0.0022,
+    maxRecoil: 0.32,
+    recovery: 9,
     spread: [
       { min: 1, max: 1, rMin: 0, rMax: 0 },
       { min: 2, max: 5, rMin: 5, rMax: 15 },
@@ -33,6 +39,10 @@ const WEAPONS = {
     desc: "Vandal보다 안정적인 연사",
     auto: true,
     resetMs: 400,
+    recoilUp: 0.0048,
+    recoilSide: 0.0016,
+    maxRecoil: 0.26,
+    recovery: 11,
     spread: [
       { min: 1, max: 1, rMin: 0, rMax: 0 },
       { min: 2, max: 5, rMin: 3, rMax: 10 },
@@ -46,6 +56,10 @@ const WEAPONS = {
     desc: "단발 권총 · 항상 정확",
     auto: false,
     resetMs: 0,
+    recoilUp: 0.011,
+    recoilSide: 0.0008,
+    maxRecoil: 0.14,
+    recovery: 14,
     spread: [{ min: 1, max: Infinity, rMin: 0, rMax: 0 }],
     fireInterval: 400,
   },
@@ -54,6 +68,10 @@ const WEAPONS = {
     desc: "저격총 · 우클릭 줌",
     auto: false,
     resetMs: 0,
+    recoilUp: 0.016,
+    recoilSide: 0.0012,
+    maxRecoil: 0.2,
+    recovery: 7,
     spread: [{ min: 1, max: Infinity, rMin: 20, rMax: 20 }],
     zoomSpread: [{ min: 1, max: Infinity, rMin: 0, rMax: 0 }],
     fireInterval: 1200,
@@ -85,6 +103,8 @@ const testState = {
   zoomed: false,
   yaw: 0,
   pitch: 0,
+  recoilPitch: 0,
+  recoilYaw: 0,
   shotCount: 0,
   lastFireAt: 0,
   resetTimer: null,
@@ -198,11 +218,45 @@ function accuracyPct() {
   return (testState.hits / testState.shots) * 100;
 }
 
+function getEffectiveAim() {
+  return {
+    yaw: testState.yaw + testState.recoilYaw,
+    pitch: clamp(testState.pitch + testState.recoilPitch, -1.35, 1.35),
+  };
+}
+
+function applyRecoilKick() {
+  const cfg = WEAPONS[testState.weapon];
+  const ramp = 1 + Math.min(testState.shotCount, 12) * 0.035;
+  testState.recoilPitch += cfg.recoilUp * ramp;
+  testState.recoilYaw += (Math.random() - 0.5) * cfg.recoilSide * 2;
+  const maxR = cfg.maxRecoil || 0.3;
+  testState.recoilPitch = Math.min(testState.recoilPitch, maxR);
+  testState.recoilYaw = clamp(testState.recoilYaw, -maxR * 0.45, maxR * 0.45);
+}
+
+function updateRecoilRecovery(dt) {
+  if (!testState.running || testState.finished) return;
+  const cfg = WEAPONS[testState.weapon];
+  const rate = testState.holdingFire ? cfg.recovery * 0.4 : cfg.recovery;
+  const factor = Math.exp(-rate * dt);
+  testState.recoilPitch *= factor;
+  testState.recoilYaw *= factor;
+  if (Math.abs(testState.recoilPitch) < 0.00004) testState.recoilPitch = 0;
+  if (Math.abs(testState.recoilYaw) < 0.00004) testState.recoilYaw = 0;
+}
+
+function resetRecoil() {
+  testState.recoilPitch = 0;
+  testState.recoilYaw = 0;
+}
+
 function worldToScreen(wx, wy, wz, viewW, viewH) {
-  const cosY = Math.cos(-testState.yaw);
-  const sinY = Math.sin(-testState.yaw);
-  const cosP = Math.cos(-testState.pitch);
-  const sinP = Math.sin(-testState.pitch);
+  const aim = getEffectiveAim();
+  const cosY = Math.cos(-aim.yaw);
+  const sinY = Math.sin(-aim.yaw);
+  const cosP = Math.cos(-aim.pitch);
+  const sinP = Math.sin(-aim.pitch);
 
   const rx = wx * cosY - wz * sinY;
   const rz = wx * sinY + wz * cosY;
@@ -242,6 +296,7 @@ function scheduleSprayReset() {
   if (testState.resetTimer) clearTimeout(testState.resetTimer);
   testState.resetTimer = setTimeout(() => {
     testState.shotCount = 0;
+    resetRecoil();
     testState.resetTimer = null;
   }, weapon.resetMs);
 }
@@ -251,6 +306,7 @@ function canFireNow() {
 }
 
 function getAimRay(spreadPx, viewW, viewH) {
+  const aim = getEffectiveAim();
   const fov = getFovRad();
   const scale = viewH / (2 * Math.tan(fov / 2));
   let ox = 0;
@@ -262,8 +318,8 @@ function getAimRay(spreadPx, viewW, viewH) {
     oy = (d * Math.sin(a)) / scale;
   }
 
-  const pitch = testState.pitch + oy;
-  const yaw = testState.yaw + ox;
+  const pitch = aim.pitch + oy;
+  const yaw = aim.yaw + ox;
   return {
     dx: Math.sin(yaw) * Math.cos(pitch),
     dy: -Math.sin(pitch),
@@ -272,15 +328,27 @@ function getAimRay(spreadPx, viewW, viewH) {
 }
 
 function rayHitSphere(ray, target) {
+  return rayHitSphereDetailed(ray, target).hit;
+}
+
+function rayHitSphereDetailed(ray, target) {
   const ocX = -target.x;
   const ocY = -target.y;
   const ocZ = -target.z;
   const b = 2 * (ocX * ray.dx + ocY * ray.dy + ocZ * ray.dz);
   const c = ocX * ocX + ocY * ocY + ocZ * ocZ - target.r * target.r;
   const disc = b * b - 4 * c;
-  if (disc < 0) return false;
+  if (disc < 0) return { hit: false };
   const t = (-b - Math.sqrt(disc)) / 2;
-  return t > 0;
+  if (t <= 0) return { hit: false };
+  return { hit: true, t, x: ray.dx * t, y: ray.dy * t, z: ray.dz * t };
+}
+
+function rayWallHit(ray, wallZ = WALL_Z) {
+  if (ray.dz >= -0.0001) return null;
+  const t = wallZ / ray.dz;
+  if (t <= 0) return null;
+  return { x: ray.dx * t, y: ray.dy * t, z: wallZ };
 }
 
 function fireBullet() {
@@ -297,6 +365,7 @@ function fireBullet() {
   const spread = getSpreadRadius(testState.weapon, testState.shotCount, testState.zoomed);
   const ray = getAimRay(spread, w, h);
   let hit = false;
+  let impactPoint = null;
 
   const checkList =
     testState.mode === "spray" && testState.centerTarget
@@ -304,8 +373,10 @@ function fireBullet() {
       : testState.targets.filter((t) => !t.hit);
 
   for (const t of checkList) {
-    if (rayHitSphere(ray, t)) {
+    const hitInfo = rayHitSphereDetailed(ray, t);
+    if (hitInfo.hit) {
       hit = true;
+      impactPoint = { x: hitInfo.x, y: hitInfo.y, z: hitInfo.z };
       if (testState.mode !== "spray") t.hit = true;
       testState.hits += 1;
 
@@ -321,16 +392,16 @@ function fireBullet() {
     }
   }
 
-  const depth = 1100;
-  const ix = ray.dx * depth;
-  const iy = ray.dy * depth;
-  const iz = ray.dz * depth;
-  const proj = worldToScreen(ix, iy, iz, w, h);
-  if (proj) {
-    testState.impacts.push({ sx: proj.sx, sy: proj.sy, hit, at: now });
+  if (!impactPoint) {
+    const wallHit = rayWallHit(ray);
+    if (wallHit) impactPoint = wallHit;
+  }
+  if (impactPoint) {
+    testState.impacts.push({ x: impactPoint.x, y: impactPoint.y, z: impactPoint.z, hit, at: now });
     if (testState.impacts.length > 120) testState.impacts.shift();
   }
 
+  applyRecoilKick();
   updateStatsUI();
 }
 
@@ -462,11 +533,14 @@ function drawTarget3D(ctx, t, w, h) {
   ctx.restore();
 }
 
-function drawImpacts(ctx) {
+function drawImpacts(ctx, w, h) {
   for (const imp of testState.impacts) {
+    const p = worldToScreen(imp.x, imp.y, imp.z, w, h);
+    if (!p || p.sx < -20 || p.sx > w + 20 || p.sy < -20 || p.sy > h + 20) continue;
+    const r = Math.max(2.5, 5 * p.scale);
     ctx.beginPath();
-    ctx.arc(imp.sx, imp.sy, 3, 0, Math.PI * 2);
-    ctx.fillStyle = imp.hit ? "rgba(59, 130, 246, 0.95)" : "rgba(255,255,255,0.4)";
+    ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+    ctx.fillStyle = imp.hit ? "rgba(59, 130, 246, 0.95)" : "rgba(255,255,255,0.45)";
     ctx.fill();
   }
 }
@@ -537,15 +611,21 @@ function renderFrame() {
     drawTarget3D(ctx, testState.centerTarget, w, h);
   }
   testState.targets.forEach((t) => drawTarget3D(ctx, t, w, h));
-  drawImpacts(ctx);
+  drawImpacts(ctx, w, h);
   drawCrosshairOverlay(ctx, w, h);
   drawHud(ctx, w, h);
 }
 
-function renderLoop() {
+function renderLoop(now) {
+  const t = now || performance.now();
+  const dt = Math.min(0.05, (t - lastFrameTime) / 1000);
+  lastFrameTime = t;
+  updateRecoilRecovery(dt);
   renderFrame();
   requestAnimationFrame(renderLoop);
 }
+
+let lastFrameTime = performance.now();
 
 function updateStatsUI() {
   if (!testEls.statHits) return;
@@ -590,7 +670,8 @@ function calcSpreadRadius() {
   const { w, h } = getViewSize();
   let maxD = 0;
   for (const imp of testState.impacts) {
-    maxD = Math.max(maxD, Math.hypot(imp.sx - w / 2, imp.sy - h / 2));
+    const p = worldToScreen(imp.x, imp.y, imp.z, w, h);
+    if (p) maxD = Math.max(maxD, Math.hypot(p.sx - w / 2, p.sy - h / 2));
   }
   return maxD;
 }
@@ -694,6 +775,7 @@ function clearTestSession() {
   testState.zoomed = false;
   testState.yaw = 0;
   testState.pitch = 0;
+  resetRecoil();
   testState.hits = 0;
   testState.shots = 0;
   testState.reactionTimes = [];
