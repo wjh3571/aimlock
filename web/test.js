@@ -44,12 +44,16 @@ function makeRangeBot(id, x, z, y, scale, platformH = 0) {
   const lane = x < -180 ? 0 : x > 180 ? 2 : 1;
   return {
     id: `bot-${id}`,
+    baseX: x,
     x,
     y,
     z,
     r: 34 * scale,
     scale,
     platformH,
+    moveRange: 48 + (id % 4) * 22,
+    moveSpeed: 0.65 + (id % 5) * 0.12,
+    movePhase: (id * 1.47) % (Math.PI * 2),
     hit: false,
     active: false,
     respawnAt: 0,
@@ -116,9 +120,9 @@ const SPRAY_PATTERNS = {
     [0.007, -0.006], [0.007, 0.008], [0.006, -0.010], [0.006, 0.012], [0.006, -0.012], [0.005, 0.014],
     [0.005, -0.010], [0.005, 0.008], [0.004, -0.008], [0.004, 0.010], [0.004, -0.006], [0.004, 0.004],
   ]),
-  sheriff: buildSpray([[0.026, 0.0]]),
-  operator: buildSpray([[0.045, 0.0]]),
-  operatorZoom: buildSpray([[0.009, 0.0]]),
+  sheriff: buildSpray([[0.028, 0.0]]),
+  operator: buildSpray([[0.048, 0.0]]),
+  operatorZoom: buildSpray([[0.010, 0.0]]),
 };
 
 const WEAPONS = {
@@ -384,19 +388,35 @@ function getSprayPattern(weaponKey) {
 function getSprayStep(weaponKey, shotIndex) {
   const pattern = getSprayPattern(weaponKey);
   const step = pattern[(shotIndex - 1) % pattern.length];
-  if (weaponKey === "sheriff") {
-    return { p: step.p, y: (Math.random() - 0.5) * 0.004 };
-  }
-  if (weaponKey === "operator" && !testState.zoomed) {
-    return { p: step.p, y: (Math.random() - 0.5) * 0.003 };
-  }
   return step;
 }
 
+function isVerticalRecoilWeapon(weaponKey) {
+  return !WEAPONS[weaponKey]?.auto;
+}
+
 function applyScreenShake(intensity) {
+  if (isVerticalRecoilWeapon(testState.weapon)) {
+    testState.shakeY -= intensity * 1.35;
+    testState.shakeY += (Math.random() - 0.5) * intensity * 0.45;
+    testState.shakeX += (Math.random() - 0.5) * intensity * 0.35;
+    return;
+  }
   testState.shakeX += (Math.random() - 0.5) * intensity * 2.8;
   testState.shakeY += (Math.random() - 0.5) * intensity * 2.8;
   testState.shakeY -= intensity * 0.35;
+}
+
+function applyRecoilKick() {
+  const cfg = WEAPONS[testState.weapon];
+  const step = getSprayStep(testState.weapon, testState.shotCount);
+  testState.recoilPitch += step.p;
+  if (cfg.auto) {
+    testState.recoilYaw += step.y;
+    testState.recoilYaw = clamp(testState.recoilYaw, -0.35, 0.35);
+  }
+  testState.recoilPitch = Math.min(testState.recoilPitch, 0.55);
+  applyScreenShake(cfg.shake || 5);
 }
 
 function updateScreenShake(dt) {
@@ -405,16 +425,6 @@ function updateScreenShake(dt) {
   testState.shakeY *= decay;
   if (Math.abs(testState.shakeX) < 0.05) testState.shakeX = 0;
   if (Math.abs(testState.shakeY) < 0.05) testState.shakeY = 0;
-}
-
-function applyRecoilKick() {
-  const cfg = WEAPONS[testState.weapon];
-  const step = getSprayStep(testState.weapon, testState.shotCount);
-  testState.recoilPitch += step.p;
-  testState.recoilYaw += step.y;
-  testState.recoilPitch = Math.min(testState.recoilPitch, 0.55);
-  testState.recoilYaw = clamp(testState.recoilYaw, -0.35, 0.35);
-  applyScreenShake(cfg.shake || 5);
 }
 
 function updateRecoilRecovery(dt) {
@@ -652,6 +662,10 @@ function activateNextAccuracyTarget() {
 function updateRangeTargets(dt) {
   const now = performance.now();
   for (const t of testState.rangeTargets) {
+    if (!t.hit && testState.running) {
+      t.movePhase += dt * t.moveSpeed;
+      t.x = t.baseX + Math.sin(t.movePhase) * t.moveRange;
+    }
     if (t.hitFlash > 0) t.hitFlash = Math.max(0, t.hitFlash - dt * 3.5);
     if (testState.mode === "practice" && t.hit && t.respawnAt && now >= t.respawnAt) {
       t.hit = false;
@@ -1054,7 +1068,7 @@ function drawBotDummy(ctx, t, w, h) {
     t.active ||
     (testState.mode === "spray" && t.type === "wall");
   const laneColor = LANE_COLORS[t.lane] || "#4ebabf";
-  const alpha = t.hit ? Math.max(0.15, t.hitFlash * 0.85) : 1;
+  const bodyAlpha = t.hit ? Math.max(0.12, t.hitFlash * 0.45) : t.active ? 0.62 : 0.48;
   const headR = Math.max(7, 18 * p.scale);
   const bodyW = Math.max(12, 28 * p.scale);
   const bodyH = Math.max(22, 52 * p.scale);
@@ -1066,19 +1080,24 @@ function drawBotDummy(ctx, t, w, h) {
   if (isActive && (t.active || testState.mode === "practice")) {
     ctx.save();
     ctx.shadowColor = laneColor;
-    ctx.shadowBlur = t.active ? 18 : 8;
+    ctx.shadowBlur = t.active ? 14 : 6;
   }
 
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = bodyAlpha;
 
-  ctx.fillStyle = isActive ? laneColor : "rgba(130, 125, 118, 0.55)";
+  if (isActive) {
+    ctx.fillStyle = laneColor;
+  } else {
+    ctx.fillStyle = "rgba(130, 125, 118, 0.55)";
+  }
   ctx.fillRect(p.sx - bodyW / 2, bodyY - bodyH / 2, bodyW, bodyH);
   ctx.beginPath();
   ctx.arc(p.sx, headY, headR, 0, Math.PI * 2);
   ctx.fill();
 
   if (t.active) {
-    ctx.strokeStyle = "#fff";
+    ctx.globalAlpha = Math.min(1, bodyAlpha + 0.2);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
     ctx.lineWidth = Math.max(2, 3 * p.scale);
     ctx.beginPath();
     ctx.arc(p.sx, headY, headR + 6, 0, Math.PI * 2);
