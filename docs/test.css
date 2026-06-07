@@ -19,6 +19,8 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  position: relative;
+  z-index: 2;
 }
 
 .test-panel-title {
@@ -60,6 +62,9 @@
   text-align: left;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 .test-option:hover {
@@ -101,6 +106,9 @@
   border-radius: 10px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 .test-btn:hover {
@@ -196,6 +204,10 @@
   width: 100%;
   height: 100%;
   cursor: crosshair;
+}
+
+.test-canvas.is-locked {
+  cursor: none;
 }
 
 .test-result-overlay {
