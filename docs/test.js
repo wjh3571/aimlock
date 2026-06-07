@@ -404,12 +404,13 @@ function applyRecoilKick() {
   const cfg = WEAPONS[testState.weapon];
   const step = getSprayStep(testState.weapon, testState.shotCount);
   const moveMult = getMovementRecoilMult();
-  testState.recoilPitch += step.p * moveMult;
+  // pitch(+)=아래를 봄 → 반동(위)은 pitch를 줄여야 함
+  testState.recoilPitch -= step.p * moveMult;
   if (cfg.auto) {
     testState.recoilYaw += step.y * moveMult;
     testState.recoilYaw = clamp(testState.recoilYaw, -0.35, 0.35);
   }
-  testState.recoilPitch = Math.min(testState.recoilPitch, 0.55);
+  testState.recoilPitch = Math.max(testState.recoilPitch, -0.55);
   applyScreenShake((cfg.shake || 5) * moveMult);
 }
 
@@ -868,6 +869,9 @@ function getHorizonY(h) {
 }
 
 function drawPlatformWing(ctx, w, h, side) {
+  const aim = getEffectiveAim();
+  if (aim.pitch > 0.45) return;
+
   const sign = side === "left" ? -1 : 1;
   const x = sign * 920;
   const zNear = -1380;
@@ -1142,20 +1146,46 @@ function drawImpacts(ctx, w, h) {
   }
 }
 
+function drawFallbackCrosshair(ctx, cx, cy, arm) {
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - arm, cy);
+  ctx.lineTo(cx + arm, cy);
+  ctx.moveTo(cx, cy - arm);
+  ctx.lineTo(cx, cy + arm);
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.lineWidth = 4;
+  ctx.globalCompositeOperation = "destination-over";
+  ctx.beginPath();
+  ctx.moveTo(cx - arm, cy);
+  ctx.lineTo(cx + arm, cy);
+  ctx.moveTo(cx, cy - arm);
+  ctx.lineTo(cx, cy + arm);
+  ctx.stroke();
+  ctx.globalCompositeOperation = "source-over";
+}
+
 function drawCrosshairOverlay(ctx, w, h) {
-  if (typeof drawCrosshair !== "function") return;
+  if (!testState.running) return;
+  const code = testState.crosshairCode || DEFAULT_CROSSHAIR;
+  const chSize = Math.max(48, Math.round(Math.min(w, h) * 0.12));
+  const cx = w / 2;
+  const cy = h / 2;
+
+  ctx.save();
   try {
-    const size = Math.min(w, h) * 0.18;
-    const off = document.createElement("canvas");
-    off.width = 256;
-    off.height = 256;
-    const octx = off.getContext("2d");
-    if (!octx) return;
-    drawCrosshair(octx, testState.crosshairCode, 256);
-    ctx.drawImage(off, (w - size) / 2, (h - size) / 2, size, size);
+    if (typeof drawCrosshair === "function") {
+      ctx.translate(cx - chSize / 2, cy - chSize / 2);
+      drawCrosshair(ctx, code, chSize);
+    } else {
+      drawFallbackCrosshair(ctx, cx, cy, chSize * 0.22);
+    }
   } catch {
-    /* 잘못된 조준점 코드여도 사격장은 계속 표시 */
+    drawFallbackCrosshair(ctx, cx, cy, chSize * 0.22);
   }
+  ctx.restore();
 }
 
 function drawWeaponView(ctx, w, h) {
@@ -1278,15 +1308,16 @@ function drawHud(ctx, w, h) {
 function renderFrame() {
   const canvas = testEls.canvas;
   if (!canvas) return;
-  let { w, h } = getViewSize();
+  let { w, h, dpr } = getViewSize();
   if (w < 10 || h < 10) {
     resizeCanvas();
-    ({ w, h } = getViewSize());
+    ({ w, h, dpr } = getViewSize());
     if (w < 10 || h < 10) return;
   }
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   ctx.save();
   ctx.translate(testState.shakeX, testState.shakeY);
