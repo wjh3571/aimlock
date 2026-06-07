@@ -572,7 +572,7 @@ function updateStatsUI() {
       testEls.statExtraRow.hidden = false;
       testEls.statExtraLabel.textContent = "남은 표적";
       testEls.statExtra.textContent = String(testState.targetsRemaining);
-    } else if (testState.mode === "reaction" && testState.running) {
+    } else if (testState.mode === "reaction" && testState.running && !testState.finished) {
       testEls.statExtraRow.hidden = false;
       testEls.statExtraLabel.textContent = "남은 시간";
       testEls.statExtra.textContent = `${Math.ceil(testState.timeLeft)}s`;
@@ -655,12 +655,23 @@ function showResultOverlay() {
 
   testEls.resultTitle.textContent = title;
   testEls.resultBody.innerHTML = lines.map((l) => `<p>${l}</p>`).join("");
-  testEls.resultBadge.hidden = !isNewBest;
-  overlay.hidden = false;
+  const showBadge = isNewBest && (testState.hits > 0 || testState.shots > 0);
+  setOverlayVisible(overlay, true);
+  if (testEls.resultBadge) {
+    testEls.resultBadge.hidden = !showBadge;
+    testEls.resultBadge.style.display = showBadge ? "inline-block" : "none";
+  }
+}
+
+function setOverlayVisible(overlay, visible) {
+  if (!overlay) return;
+  overlay.hidden = !visible;
+  overlay.style.display = visible ? "flex" : "none";
+  overlay.classList.toggle("is-open", visible);
 }
 
 function hideResultOverlay() {
-  if (testEls.resultOverlay) testEls.resultOverlay.hidden = true;
+  setOverlayVisible(testEls.resultOverlay, false);
   testState.finished = false;
 }
 
@@ -710,6 +721,7 @@ function finishTest() {
 
 function startTest() {
   clearTestSession();
+  setOverlayVisible(testEls.resultOverlay, false);
   resizeCanvas();
   testState.running = true;
   testState.crosshairCode = loadActiveCrosshair();
@@ -892,6 +904,7 @@ function initTestPage() {
   if (!testEls.view || !testEls.canvas) return;
 
   clearTestSession();
+  setOverlayVisible(testEls.resultOverlay, false);
   testState.crosshairCode = loadActiveCrosshair();
   syncCrosshairUI();
   bindWeaponModeSelectors();
@@ -901,7 +914,10 @@ function initTestPage() {
 
   testEls.startBtn?.addEventListener("click", startTest);
   testEls.restartBtn?.addEventListener("click", restartTest);
-  testEls.resultCloseBtn?.addEventListener("click", hideResultOverlay);
+  testEls.resultCloseBtn?.addEventListener("click", () => {
+    hideResultOverlay();
+    if (!testState.running) updateStatsUI();
+  });
 
   testEls.crosshairApplyBtn?.addEventListener("click", () => {
     const code = testEls.crosshairCodeInput.value.trim();

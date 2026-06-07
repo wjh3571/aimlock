@@ -213,12 +213,21 @@
 .test-result-overlay {
   position: absolute;
   inset: 0;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(4px);
   z-index: 10;
+}
+
+.test-result-overlay.is-open,
+.test-result-overlay:not([hidden]) {
+  display: flex;
+}
+
+.test-result-overlay[hidden] {
+  display: none !important;
 }
 
 .test-result-card {
