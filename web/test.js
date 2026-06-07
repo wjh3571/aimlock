@@ -19,33 +19,81 @@ const SENS_DEFAULT = 100;
 const DEFAULT_CROSSHAIR =
   "0;P;c;5;o;1;d;1;0b;0;1b;0;S;c;5;o;1;d;1;0b;0;1b;0;";
 
-const WALL_Z = -1400;
+const WALL_Z = -3200;
+const FLOOR_Y = -240;
+const HALL_HALF = 1150;
 
 const PLAYER = {
   eyeY: 130,
-  speed: 360,
-  boundsX: [-440, 440],
-  boundsZ: [-60, 140],
+  speed: 420,
+  boundsX: [-620, 620],
+  boundsZ: [-120, 200],
 };
 
-/** 훈련장 더미 배치 (x, z, y, scale) — 3거리 × 좌/중/우 + 추가 포지션 */
-const RANGE_LAYOUT = [
-  [-400, -520, 100, 1.15],
-  [0, -520, 130, 1.15],
-  [400, -520, 90, 1.15],
-  [-400, -820, 20, 1.0],
-  [0, -820, 60, 1.0],
-  [400, -820, 160, 1.0],
-  [-400, -1080, 180, 0.88],
-  [0, -1080, 40, 0.88],
-  [400, -1080, -10, 0.88],
-  [-200, -680, 210, 1.05],
-  [200, -680, -20, 1.05],
-  [-200, -960, 120, 0.92],
-  [200, -960, 200, 0.92],
-  [-320, -1280, 70, 0.72],
-  [320, -1280, 150, 0.72],
+/** OW 훈련장형 거리·열 배치 */
+const RANGE_ROWS = [
+  { z: -1050, label: "10m", scale: 0.9 },
+  { z: -1650, label: "20m", scale: 0.74 },
+  { z: -2250, label: "30m", scale: 0.6 },
+  { z: -2850, label: "40m", scale: 0.5 },
 ];
+
+const RANGE_COLS = [-720, -360, 0, 360, 720];
+
+function makeRangeBot(id, x, z, y, scale, platformH = 0) {
+  const lane = x < -180 ? 0 : x > 180 ? 2 : 1;
+  return {
+    id: `bot-${id}`,
+    x,
+    y,
+    z,
+    r: 34 * scale,
+    scale,
+    platformH,
+    hit: false,
+    active: false,
+    respawnAt: 0,
+    hitFlash: 0,
+    lane,
+  };
+}
+
+function buildRangeLayout() {
+  const bots = [];
+  let id = 0;
+
+  RANGE_COLS.forEach((x, i) => {
+    bots.push(makeRangeBot(id++, x, RANGE_ROWS[0].z, 88 + (i % 3) * 22, RANGE_ROWS[0].scale));
+  });
+
+  bots.push(makeRangeBot(id++, -720, RANGE_ROWS[1].z, 235, RANGE_ROWS[1].scale, 150));
+  bots.push(makeRangeBot(id++, -720, RANGE_ROWS[1].z, 52, RANGE_ROWS[1].scale));
+  bots.push(makeRangeBot(id++, -360, RANGE_ROWS[1].z, 82, RANGE_ROWS[1].scale));
+  bots.push(makeRangeBot(id++, 0, RANGE_ROWS[1].z, 102, RANGE_ROWS[1].scale));
+  bots.push(makeRangeBot(id++, 360, RANGE_ROWS[1].z, 72, RANGE_ROWS[1].scale));
+  bots.push(makeRangeBot(id++, 720, RANGE_ROWS[1].z, 218, RANGE_ROWS[1].scale, 140));
+  bots.push(makeRangeBot(id++, 720, RANGE_ROWS[1].z, 42, RANGE_ROWS[1].scale));
+
+  const row3Heights = [105, 145, 78, 165, 98];
+  RANGE_COLS.forEach((x, i) => {
+    bots.push(
+      makeRangeBot(
+        id++,
+        x,
+        RANGE_ROWS[2].z,
+        row3Heights[i],
+        RANGE_ROWS[2].scale,
+        i === 0 || i === 4 ? 85 : 0
+      )
+    );
+  });
+
+  [-480, 0, 480].forEach((x, i) => {
+    bots.push(makeRangeBot(id++, x, RANGE_ROWS[3].z, 92 + i * 18, RANGE_ROWS[3].scale));
+  });
+
+  return bots;
+}
 
 const LANE_COLORS = ["#4ebabf", "#f99e1a", "#e85d75"];
 
@@ -201,8 +249,10 @@ function getViewSize() {
 }
 
 function getFovRad() {
-  if (testState.weapon === "operator" && testState.zoomed) return (28 * Math.PI) / 180;
-  return (72 * Math.PI) / 180;
+  const { w, h } = getViewSize();
+  if (testState.weapon === "operator" && testState.zoomed) return (36 * Math.PI) / 180;
+  const hFov = (100 * Math.PI) / 180;
+  return 2 * Math.atan(Math.tan(hFov / 2) * (h / Math.max(w, 1)));
 }
 
 function clamp(v, min, max) {
@@ -484,20 +534,7 @@ function worldToScreen(wx, wy, wz, viewW, viewH) {
 }
 
 function buildRangeTargets() {
-  return RANGE_LAYOUT.map(([x, z, y, scale], i) => ({
-    id: `bot-${i}`,
-    x,
-    y,
-    z,
-    r: 40 * scale,
-    scale,
-    hit: false,
-    active: false,
-    respawnAt: 0,
-    hitFlash: 0,
-    lane: x < -100 ? 0 : x > 100 ? 2 : 1,
-    distLabel: z > -650 ? "근" : z > -950 ? "중" : "원",
-  }));
+  return buildRangeLayout();
 }
 
 function initRangeSession() {
@@ -510,10 +547,10 @@ function initRangeSession() {
     testState.centerTarget = {
       id: "spray-wall",
       x: 0,
-      y: 50,
-      z: WALL_Z + 40,
-      r: 85,
-      scale: 1,
+      y: 60,
+      z: WALL_Z + 50,
+      r: 70,
+      scale: 0.55,
       hit: false,
       active: true,
       type: "wall",
@@ -804,36 +841,80 @@ function resizeCanvas() {
   if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
+function getHorizonY(h) {
+  return h * (0.5 + Math.min(0.06, (h / Math.max(getViewSize().w, 1)) * 0.04));
+}
+
+function drawPlatformWing(ctx, w, h, side) {
+  const sign = side === "left" ? -1 : 1;
+  const x = sign * 920;
+  const zNear = -1380;
+  const zFar = -1920;
+  const yBase = FLOOR_Y;
+  const yTop = FLOOR_Y + 155;
+
+  const corners = [
+    worldToScreen(x, yBase, zNear, w, h),
+    worldToScreen(x, yBase, zFar, w, h),
+    worldToScreen(x, yTop, zFar, w, h),
+    worldToScreen(x, yTop, zNear, w, h),
+  ];
+  if (corners.some((p) => !p)) return;
+
+  ctx.fillStyle = side === "left" ? "rgba(232, 220, 200, 0.92)" : "rgba(228, 216, 198, 0.92)";
+  ctx.beginPath();
+  ctx.moveTo(corners[0].sx, corners[0].sy);
+  corners.slice(1).forEach((p) => ctx.lineTo(p.sx, p.sy));
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(249, 158, 26, 0.55)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  const railA = worldToScreen(x, yTop + 8, zNear, w, h);
+  const railB = worldToScreen(x, yTop + 8, zFar, w, h);
+  if (railA && railB) {
+    ctx.strokeStyle = "rgba(78, 186, 191, 0.65)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(railA.sx, railA.sy);
+    ctx.lineTo(railB.sx, railB.sy);
+    ctx.stroke();
+  }
+}
+
 function drawFpsScene(ctx, w, h) {
-  const sky = ctx.createLinearGradient(0, 0, 0, h * 0.42);
-  sky.addColorStop(0, "#8ec4c8");
-  sky.addColorStop(1, "#d4c4a8");
+  const horizon = getHorizonY(h);
+  const sky = ctx.createLinearGradient(0, 0, 0, horizon);
+  sky.addColorStop(0, "#7eb8bc");
+  sky.addColorStop(0.55, "#b8cdb8");
+  sky.addColorStop(1, "#ddd0ba");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, w, h);
 
-  const floorY = h * 0.52;
-  const floor = ctx.createLinearGradient(0, floorY, 0, h);
-  floor.addColorStop(0, "#ece6dc");
+  const floor = ctx.createLinearGradient(0, horizon, 0, h);
+  floor.addColorStop(0, "#f0ebe3");
+  floor.addColorStop(0.35, "#e4dbd0");
   floor.addColorStop(1, "#c8bfb0");
   ctx.fillStyle = floor;
   ctx.beginPath();
-  ctx.moveTo(0, floorY);
-  ctx.lineTo(w, floorY);
+  ctx.moveTo(0, horizon);
+  ctx.lineTo(w, horizon);
   ctx.lineTo(w, h);
   ctx.lineTo(0, h);
   ctx.closePath();
   ctx.fill();
 
   const backWallZ = WALL_Z;
-  const wallTL = worldToScreen(-980, 340, backWallZ, w, h);
-  const wallTR = worldToScreen(980, 340, backWallZ, w, h);
-  const wallBL = worldToScreen(-980, -320, backWallZ, w, h);
-  const wallBR = worldToScreen(980, -320, backWallZ, w, h);
+  const wallTL = worldToScreen(-HALL_HALF, 360, backWallZ, w, h);
+  const wallTR = worldToScreen(HALL_HALF, 360, backWallZ, w, h);
+  const wallBL = worldToScreen(-HALL_HALF, FLOOR_Y, backWallZ, w, h);
+  const wallBR = worldToScreen(HALL_HALF, FLOOR_Y, backWallZ, w, h);
   if (wallTL && wallTR && wallBL && wallBR) {
     const wallGrad = ctx.createLinearGradient(wallTL.sx, wallTL.sy, wallBR.sx, wallBR.sy);
-    wallGrad.addColorStop(0, "#e8dcc8");
-    wallGrad.addColorStop(0.5, "#ddd0ba");
-    wallGrad.addColorStop(1, "#cfc2aa");
+    wallGrad.addColorStop(0, "#f2eadf");
+    wallGrad.addColorStop(0.45, "#e8dcc8");
+    wallGrad.addColorStop(1, "#d8ccb4");
     ctx.fillStyle = wallGrad;
     ctx.beginPath();
     ctx.moveTo(wallTL.sx, wallTL.sy);
@@ -843,26 +924,30 @@ function drawFpsScene(ctx, w, h) {
     ctx.closePath();
     ctx.fill();
 
-    ctx.strokeStyle = "rgba(78, 186, 191, 0.55)";
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    ctx.fillStyle = "rgba(249, 158, 26, 0.9)";
+    const stripeY = worldToScreen(0, 180, backWallZ, w, h);
+    const stripeL = worldToScreen(-HALL_HALF * 0.85, 180, backWallZ, w, h);
+    const stripeR = worldToScreen(HALL_HALF * 0.85, 180, backWallZ, w, h);
+    if (stripeY && stripeL && stripeR) {
+      ctx.fillRect(stripeL.sx, stripeY.sy - 4, stripeR.sx - stripeL.sx, 8);
+    }
 
-    const cx = (wallTL.sx + wallTR.sx) / 2;
-    const cy = (wallTL.sy + wallBR.sy) / 2;
-    const rw = Math.abs(wallTR.sx - wallTL.sx);
-    ctx.strokeStyle = "rgba(249, 158, 26, 0.35)";
+    ctx.strokeStyle = "rgba(78, 186, 191, 0.45)";
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, rw * 0.12, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.strokeRect(
+      wallTL.sx + 8,
+      wallTL.sy + 8,
+      wallTR.sx - wallTL.sx - 16,
+      wallBL.sy - wallTL.sy - 16
+    );
   }
 
-  const sideL = worldToScreen(-980, 340, -100, w, h);
-  const sideR = worldToScreen(980, 340, -100, w, h);
+  const sideL = worldToScreen(-HALL_HALF, 360, -80, w, h);
+  const sideR = worldToScreen(HALL_HALF, 360, -80, w, h);
   if (sideL && sideR && wallTL) {
-    ctx.fillStyle = "#d9ccb6";
+    ctx.fillStyle = "#e2d6c4";
     ctx.beginPath();
-    ctx.moveTo(0, floorY);
+    ctx.moveTo(0, horizon);
     ctx.lineTo(sideL.sx, sideL.sy);
     ctx.lineTo(wallTL.sx, wallTL.sy);
     ctx.lineTo(wallBL.sx, wallBL.sy);
@@ -870,7 +955,7 @@ function drawFpsScene(ctx, w, h) {
     ctx.closePath();
     ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(w, floorY);
+    ctx.moveTo(w, horizon);
     ctx.lineTo(sideR.sx, sideR.sy);
     ctx.lineTo(wallTR.sx, wallTR.sy);
     ctx.lineTo(wallBR.sx, wallBR.sy);
@@ -879,11 +964,14 @@ function drawFpsScene(ctx, w, h) {
     ctx.fill();
   }
 
-  ctx.strokeStyle = "rgba(120, 110, 95, 0.22)";
+  drawPlatformWing(ctx, w, h, "left");
+  drawPlatformWing(ctx, w, h, "right");
+
+  ctx.strokeStyle = "rgba(110, 100, 88, 0.2)";
   ctx.lineWidth = 2;
-  for (const laneX of [-400, 0, 400]) {
-    const a = worldToScreen(laneX, -240, -180, w, h);
-    const b = worldToScreen(laneX, -240, backWallZ, w, h);
+  for (const laneX of RANGE_COLS) {
+    const a = worldToScreen(laneX, FLOOR_Y, -120, w, h);
+    const b = worldToScreen(laneX, FLOOR_Y, backWallZ, w, h);
     if (!a || !b) continue;
     ctx.beginPath();
     ctx.moveTo(a.sx, a.sy);
@@ -891,56 +979,63 @@ function drawFpsScene(ctx, w, h) {
     ctx.stroke();
   }
 
-  ctx.strokeStyle = "rgba(120, 110, 95, 0.18)";
+  ctx.strokeStyle = "rgba(110, 100, 88, 0.16)";
   ctx.lineWidth = 1;
-  for (let d = 0; d <= 10; d += 1) {
-    const z = -220 - d * 120;
-    const p1 = worldToScreen(-920, -240, z, w, h);
-    const p2 = worldToScreen(920, -240, z, w, h);
+  for (let d = 0; d <= 14; d += 1) {
+    const z = -180 - d * 220;
+    const p1 = worldToScreen(-HALL_HALF, FLOOR_Y, z, w, h);
+    const p2 = worldToScreen(HALL_HALF, FLOOR_Y, z, w, h);
     if (!p1 || !p2) continue;
     ctx.beginPath();
     ctx.moveTo(p1.sx, p1.sy);
     ctx.lineTo(p2.sx, p2.sy);
     ctx.stroke();
-    if (d % 2 === 0) {
-      const label = worldToScreen(-860, -200, z, w, h);
-      if (label) {
-        ctx.fillStyle = "rgba(90, 80, 70, 0.45)";
-        ctx.font = "500 11px var(--font, sans-serif)";
-        ctx.textAlign = "left";
-        ctx.fillText(`${Math.round(Math.abs(z) / 100)}m`, label.sx, label.sy);
-      }
-    }
   }
 
-  for (const z of [-520, -820, -1080]) {
-    const banner = worldToScreen(0, 280, z, w, h);
+  for (const row of RANGE_ROWS) {
+    const banner = worldToScreen(-HALL_HALF + 80, 300, row.z, w, h);
     if (!banner) continue;
-    ctx.fillStyle = "rgba(78, 186, 191, 0.85)";
-    const bw = 90 * banner.scale;
-    const bh = 18 * banner.scale;
-    ctx.fillRect(banner.sx - bw / 2, banner.sy - bh / 2, bw, bh);
+    ctx.fillStyle = "rgba(249, 158, 26, 0.88)";
+    const bw = 64 * banner.scale;
+    const bh = 16 * banner.scale;
+    ctx.fillRect(banner.sx, banner.sy - bh / 2, bw, bh);
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.font = `600 ${Math.max(9, 11 * banner.scale)}px var(--font, sans-serif)`;
+    ctx.textAlign = "left";
+    ctx.fillText(row.label, banner.sx + 8, banner.sy + 4);
   }
 
-  const playerFoot = worldToScreen(testState.posX, -240, testState.posZ + 40, w, h);
+  const playerFoot = worldToScreen(testState.posX, FLOOR_Y, testState.posZ + 50, w, h);
   if (playerFoot && testState.running) {
-    ctx.fillStyle = "rgba(78, 186, 191, 0.25)";
+    ctx.fillStyle = "rgba(78, 186, 191, 0.22)";
     ctx.beginPath();
-    ctx.ellipse(playerFoot.sx, playerFoot.sy, 28, 10, 0, 0, Math.PI * 2);
+    ctx.ellipse(playerFoot.sx, playerFoot.sy, 32, 11, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 }
 
 function drawPedestal(ctx, t, w, h) {
-  const base = worldToScreen(t.x, -240, t.z, w, h);
-  const top = worldToScreen(t.x, t.y - t.r - 20, t.z, w, h);
+  const platTopY = FLOOR_Y + (t.platformH || 0);
+  const base = worldToScreen(t.x, FLOOR_Y, t.z, w, h);
+  const plat = worldToScreen(t.x, platTopY, t.z, w, h);
+  const top = worldToScreen(t.x, t.y - t.r - 10, t.z, w, h);
   if (!base || !top) return;
-  const pw = Math.max(14, 36 * base.scale);
-  const ph = base.sy - top.sy;
-  ctx.fillStyle = "rgba(60, 55, 50, 0.35)";
-  ctx.fillRect(base.sx - pw / 2, top.sy, pw, ph);
-  ctx.fillStyle = "rgba(90, 85, 78, 0.5)";
-  ctx.fillRect(base.sx - pw * 0.7, base.sy - 6, pw * 1.4, 6);
+  const pw = Math.max(12, 32 * base.scale);
+
+  if (t.platformH > 0 && plat) {
+    const padW = Math.max(18, 44 * base.scale);
+    ctx.fillStyle = "rgba(249, 158, 26, 0.88)";
+    ctx.fillRect(plat.sx - padW / 2, plat.sy - 5, padW, 10);
+    ctx.fillStyle = "rgba(60, 55, 50, 0.35)";
+    ctx.fillRect(base.sx - pw / 2, plat.sy, pw, base.sy - plat.sy);
+  } else {
+    ctx.fillStyle = "rgba(249, 158, 26, 0.75)";
+    ctx.fillRect(base.sx - pw * 0.65, base.sy - 5, pw * 1.3, 8);
+  }
+
+  const postTop = plat && t.platformH > 0 ? plat.sy : base.sy - 5;
+  ctx.fillStyle = "rgba(70, 65, 58, 0.45)";
+  ctx.fillRect(base.sx - pw / 2, top.sy, pw, postTop - top.sy);
 }
 
 function drawBotDummy(ctx, t, w, h) {
