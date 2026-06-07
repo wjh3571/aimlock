@@ -1250,7 +1250,7 @@ function drawHud(ctx, w, h) {
     ctx.fillStyle = "#f4f5f7";
     ctx.font = "600 16px var(--font, sans-serif)";
     ctx.textAlign = "center";
-    ctx.fillText("좌측에서 설정 후 시작 버튼을 누르세요", w / 2, h / 2 - 8);
+    ctx.fillText("위에서 설정 후 시작 버튼을 누르세요", w / 2, h / 2 - 8);
     ctx.fillStyle = "#9aa3b2";
     ctx.font = "400 13px var(--font, sans-serif)";
     ctx.fillText("훈련장 · 이동하며 사격 연습", w / 2, h / 2 + 18);
@@ -1597,6 +1597,7 @@ function bindWeaponModeSelectors() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "test-option" + (testState.weapon === key ? " is-active" : "");
+    btn.title = w.desc;
     btn.innerHTML = `<span class="test-option-label">${w.label}</span><span class="test-option-desc">${w.desc}</span>`;
     btn.addEventListener("click", () => {
       if (!canChangeSettings()) {
@@ -1615,6 +1616,7 @@ function bindWeaponModeSelectors() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "test-option" + (testState.mode === key ? " is-active" : "");
+    btn.title = m.desc;
     btn.innerHTML = `<span class="test-option-label">${m.label}</span><span class="test-option-desc">${m.desc}</span>`;
     btn.addEventListener("click", () => {
       if (!canChangeSettings()) {
