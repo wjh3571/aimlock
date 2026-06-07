@@ -28,9 +28,9 @@
     </header>
 
     <section class="test-hero page-hero" aria-labelledby="testHeroTitle">
-      <p class="t-kicker">Practice</p>
-      <h1 id="testHeroTitle" class="t-display">조준점 테스트</h1>
-      <p class="t-hero-lead">1인칭 시점 사격장에서 조준점을 테스트하세요. 시작 후 화면을 클릭하면 FPS 모드로 전환됩니다.</p>
+      <p class="t-kicker">Training Range</p>
+      <h1 id="testHeroTitle" class="t-display">훈련장</h1>
+      <p class="t-hero-lead">오버워치 훈련장처럼 이동하며 더미를 맞히고 조준점을 연습하세요. WASD로 이동, 마우스로 조준합니다.</p>
     </section>
 
     <section id="viewTest" class="test-view" aria-label="조준점 테스트">
@@ -48,9 +48,32 @@
             <div class="test-options" id="testModeGroup"></div>
           </div>
 
+          <div class="test-section">
+            <h3 class="test-section-label">마우스 감도</h3>
+            <div class="test-sens-row">
+              <input type="range" class="test-sens-slider" id="testSensSlider" min="25" max="300" step="5" value="100" aria-label="마우스 감도" />
+              <output class="test-sens-value" id="testSensValue" for="testSensSlider">100%</output>
+            </div>
+            <p class="test-sens-hint">100%가 기본값입니다. 게임 감도에 맞게 조절하세요.</p>
+          </div>
+
+          <div class="test-section test-controls-section">
+            <h3 class="test-section-label">조작</h3>
+            <div class="test-controls-grid" aria-hidden="true">
+              <span class="test-key test-key-empty"></span>
+              <span class="test-key">W</span>
+              <span class="test-key test-key-empty"></span>
+              <span class="test-key">A</span>
+              <span class="test-key">S</span>
+              <span class="test-key">D</span>
+            </div>
+            <p class="test-controls-hint">WASD 이동 · 마우스 조준 · 좌클릭 발사 · ESC 종료</p>
+          </div>
+
           <div class="test-actions">
             <button type="button" class="test-btn test-btn-primary" id="testStartBtn">시작</button>
             <button type="button" class="test-btn" id="testRestartBtn">재시작</button>
+            <button type="button" class="test-btn test-btn-danger" id="testStopBtn">종료</button>
           </div>
 
           <div class="test-section test-crosshair-section">
@@ -116,6 +139,6 @@
   <script src="baas-config.js"></script>
   <script src="preview.js"></script>
   <script src="auth.js?v=supabase-auth-2"></script>
-  <script src="test.js?v=aim-fix-1"></script>
+  <script src="test.js?v=aim-range-2"></script>
 </body>
 </html>

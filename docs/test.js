@@ -10,22 +10,77 @@ function showTestToast(msg) {
 }
 
 const ACTIVE_CROSSHAIR_KEY = "aimlock_active_crosshair";
+const SENSITIVITY_KEY = "aimlock_test_sensitivity";
 const BEST_RECORD_PREFIX = "aimlock_test_best_";
+const MOUSE_SENS_BASE = 0.0022;
+const SENS_MIN = 25;
+const SENS_MAX = 300;
+const SENS_DEFAULT = 100;
 const DEFAULT_CROSSHAIR =
   "0;P;c;5;o;1;d;1;0b;0;1b;0;S;c;5;o;1;d;1;0b;0;1b;0;";
 
 const WALL_Z = -1400;
 
+const PLAYER = {
+  eyeY: 130,
+  speed: 360,
+  boundsX: [-440, 440],
+  boundsZ: [-60, 140],
+};
+
+/** 훈련장 더미 배치 (x, z, y, scale) — 3거리 × 좌/중/우 + 추가 포지션 */
+const RANGE_LAYOUT = [
+  [-400, -520, 100, 1.15],
+  [0, -520, 130, 1.15],
+  [400, -520, 90, 1.15],
+  [-400, -820, 20, 1.0],
+  [0, -820, 60, 1.0],
+  [400, -820, 160, 1.0],
+  [-400, -1080, 180, 0.88],
+  [0, -1080, 40, 0.88],
+  [400, -1080, -10, 0.88],
+  [-200, -680, 210, 1.05],
+  [200, -680, -20, 1.05],
+  [-200, -960, 120, 0.92],
+  [200, -960, 200, 0.92],
+  [-320, -1280, 70, 0.72],
+  [320, -1280, 150, 0.72],
+];
+
+const LANE_COLORS = ["#4ebabf", "#f99e1a", "#e85d75"];
+
+/** 총별 스프레이 패턴 (왼쪽=발사 경로, pitch=위로, yaw=우측) */
+function buildSpray(entries) {
+  return entries.map(([p, y]) => ({ p, y }));
+}
+
+const SPRAY_PATTERNS = {
+  vandal: buildSpray([
+    [0.010, 0.0], [0.011, 0.0], [0.012, 0.001], [0.013, 0.001], [0.014, 0.002],
+    [0.013, 0.006], [0.012, 0.010], [0.011, 0.014], [0.010, 0.018],
+    [0.009, -0.012], [0.008, -0.018], [0.007, -0.024], [0.006, -0.028], [0.005, -0.030],
+    [0.005, -0.028], [0.004, -0.022], [0.004, -0.014], [0.004, -0.006],
+    [0.004, 0.008], [0.004, 0.016], [0.003, 0.022], [0.003, 0.018], [0.003, 0.012], [0.003, 0.006],
+  ]),
+  phantom: buildSpray([
+    [0.008, 0.0], [0.009, 0.0], [0.010, 0.0], [0.010, 0.001], [0.010, 0.002],
+    [0.009, 0.005], [0.008, 0.008], [0.008, 0.010],
+    [0.007, -0.006], [0.007, 0.008], [0.006, -0.010], [0.006, 0.012], [0.006, -0.012], [0.005, 0.014],
+    [0.005, -0.010], [0.005, 0.008], [0.004, -0.008], [0.004, 0.010], [0.004, -0.006], [0.004, 0.004],
+  ]),
+  sheriff: buildSpray([[0.026, 0.0]]),
+  operator: buildSpray([[0.045, 0.0]]),
+  operatorZoom: buildSpray([[0.009, 0.0]]),
+};
+
 const WEAPONS = {
   vandal: {
     label: "Vandal",
-    desc: "연사 · 첫 탄 정확 · 연사 시 탄착군 증가",
+    desc: "연사 · AK형 스프레이 · 위→우→좌→우",
     auto: true,
     resetMs: 500,
-    recoilUp: 0.0065,
-    recoilSide: 0.0022,
-    maxRecoil: 0.32,
-    recovery: 9,
+    recovery: 10,
+    shake: 7,
     spread: [
       { min: 1, max: 1, rMin: 0, rMax: 0 },
       { min: 2, max: 5, rMin: 5, rMax: 15 },
@@ -36,13 +91,11 @@ const WEAPONS = {
   },
   phantom: {
     label: "Phantom",
-    desc: "Vandal보다 안정적인 연사",
+    desc: "연사 · M4형 스프레이 · 상단 지그재그",
     auto: true,
     resetMs: 400,
-    recoilUp: 0.0048,
-    recoilSide: 0.0016,
-    maxRecoil: 0.26,
-    recovery: 11,
+    recovery: 12,
+    shake: 5.5,
     spread: [
       { min: 1, max: 1, rMin: 0, rMax: 0 },
       { min: 2, max: 5, rMin: 3, rMax: 10 },
@@ -53,25 +106,21 @@ const WEAPONS = {
   },
   sheriff: {
     label: "Sheriff",
-    desc: "단발 권총 · 항상 정확",
+    desc: "단발 · 강한 수직 킥 · 첫 발 정확",
     auto: false,
     resetMs: 0,
-    recoilUp: 0.011,
-    recoilSide: 0.0008,
-    maxRecoil: 0.14,
-    recovery: 14,
+    recovery: 16,
+    shake: 11,
     spread: [{ min: 1, max: Infinity, rMin: 0, rMax: 0 }],
     fireInterval: 400,
   },
   operator: {
     label: "Operator",
-    desc: "저격총 · 우클릭 줌",
+    desc: "저격 · 큰 반동 · 우클릭 줌",
     auto: false,
     resetMs: 0,
-    recoilUp: 0.016,
-    recoilSide: 0.0012,
-    maxRecoil: 0.2,
-    recovery: 7,
+    recovery: 8,
+    shake: 16,
     spread: [{ min: 1, max: Infinity, rMin: 20, rMax: 20 }],
     zoomSpread: [{ min: 1, max: Infinity, rMin: 0, rMax: 0 }],
     fireInterval: 1200,
@@ -79,32 +128,46 @@ const WEAPONS = {
 };
 
 const MODES = {
+  practice: {
+    label: "훈련장 연습",
+    desc: "고정 더미를 맞히며 자유롭게 연습합니다.",
+  },
   reaction: {
     label: "반응속도 테스트",
-    desc: "30초 동안 랜덤 표적을 빠르게 제거하세요.",
+    desc: "30초 동안 활성화된 더미를 빠르게 제거하세요.",
   },
   accuracy: {
     label: "정확도 테스트",
-    desc: "50개의 표적을 모두 제거하세요.",
+    desc: "50개의 더미를 모두 제거하세요.",
   },
   spray: {
     label: "연사 테스트",
-    desc: "중앙 표적에 연사하여 탄착군을 확인하세요.",
+    desc: "원거리 벽 표적에 연사하여 탄착군을 확인하세요.",
   },
 };
 
 const testState = {
   weapon: "vandal",
-  mode: "reaction",
+  mode: "practice",
   running: false,
   finished: false,
   locked: false,
   crosshairCode: DEFAULT_CROSSHAIR,
   zoomed: false,
+  posX: 0,
+  posZ: 0,
+  bobPhase: 0,
+  bobOffset: 0,
+  keys: { left: false, right: false, forward: false, back: false },
+  activeTargetId: null,
+  rangeTargets: [],
+  sensitivity: SENS_DEFAULT,
   yaw: 0,
   pitch: 0,
   recoilPitch: 0,
   recoilYaw: 0,
+  shakeX: 0,
+  shakeY: 0,
   shotCount: 0,
   lastFireAt: 0,
   resetTimer: null,
@@ -177,6 +240,44 @@ function saveActiveCrosshair(code) {
   window.dispatchEvent(new CustomEvent("aimlock:crosshair-change", { detail: { code } }));
 }
 
+function loadSensitivity() {
+  try {
+    const saved = Number(localStorage.getItem(SENSITIVITY_KEY));
+    if (Number.isFinite(saved)) return clamp(saved, SENS_MIN, SENS_MAX);
+  } catch {
+    /* ignore */
+  }
+  return SENS_DEFAULT;
+}
+
+function saveSensitivity(value) {
+  try {
+    localStorage.setItem(SENSITIVITY_KEY, String(value));
+  } catch {
+    /* ignore */
+  }
+}
+
+function getMouseSensitivity() {
+  return MOUSE_SENS_BASE * (testState.sensitivity / SENS_DEFAULT);
+}
+
+function syncSensitivityUI() {
+  const val = testState.sensitivity;
+  if (testEls.sensSlider) testEls.sensSlider.value = String(val);
+  if (testEls.sensValue) testEls.sensValue.textContent = `${val}%`;
+}
+
+function setSensitivity(value, { persist = true } = {}) {
+  testState.sensitivity = clamp(Math.round(value), SENS_MIN, SENS_MAX);
+  syncSensitivityUI();
+  if (persist) saveSensitivity(testState.sensitivity);
+}
+
+function canChangeSettings() {
+  return !testState.running || !testState.locked;
+}
+
 function bestRecordKey(mode, weapon) {
   return `${BEST_RECORD_PREFIX}${mode}_${weapon}`;
 }
@@ -225,26 +326,58 @@ function getEffectiveAim() {
   };
 }
 
-function applyRecoilKick() {
-  const cfg = WEAPONS[testState.weapon];
-  const ramp = 1 + Math.min(testState.shotCount, 12) * 0.035;
-  testState.recoilPitch += cfg.recoilUp * ramp;
-  testState.recoilYaw += (Math.random() - 0.5) * cfg.recoilSide * 2;
-  const maxR = cfg.maxRecoil || 0.3;
-  testState.recoilPitch = Math.min(testState.recoilPitch, maxR);
-  testState.recoilYaw = clamp(testState.recoilYaw, -maxR * 0.45, maxR * 0.45);
+function getSprayPattern(weaponKey) {
+  if (weaponKey === "operator" && testState.zoomed) return SPRAY_PATTERNS.operatorZoom;
+  return SPRAY_PATTERNS[weaponKey] || SPRAY_PATTERNS.vandal;
 }
 
-function queueRecoilKick() {
-  requestAnimationFrame(() => {
-    if (testState.running && !testState.finished) applyRecoilKick();
-  });
+function getSprayStep(weaponKey, shotIndex) {
+  const pattern = getSprayPattern(weaponKey);
+  const step = pattern[(shotIndex - 1) % pattern.length];
+  if (weaponKey === "sheriff") {
+    return { p: step.p, y: (Math.random() - 0.5) * 0.004 };
+  }
+  if (weaponKey === "operator" && !testState.zoomed) {
+    return { p: step.p, y: (Math.random() - 0.5) * 0.003 };
+  }
+  return step;
+}
+
+function applyScreenShake(intensity) {
+  testState.shakeX += (Math.random() - 0.5) * intensity * 2.8;
+  testState.shakeY += (Math.random() - 0.5) * intensity * 2.8;
+  testState.shakeY -= intensity * 0.35;
+}
+
+function updateScreenShake(dt) {
+  const decay = Math.exp(-16 * dt);
+  testState.shakeX *= decay;
+  testState.shakeY *= decay;
+  if (Math.abs(testState.shakeX) < 0.05) testState.shakeX = 0;
+  if (Math.abs(testState.shakeY) < 0.05) testState.shakeY = 0;
+}
+
+function applyRecoilKick() {
+  const cfg = WEAPONS[testState.weapon];
+  const step = getSprayStep(testState.weapon, testState.shotCount);
+  testState.recoilPitch += step.p;
+  testState.recoilYaw += step.y;
+  testState.recoilPitch = Math.min(testState.recoilPitch, 0.55);
+  testState.recoilYaw = clamp(testState.recoilYaw, -0.35, 0.35);
+  applyScreenShake(cfg.shake || 5);
 }
 
 function updateRecoilRecovery(dt) {
-  if (!testState.running || testState.finished) return;
+  if (!testState.running || testState.finished) {
+    if (!testState.running) {
+      const factor = Math.exp(-14 * dt);
+      testState.recoilPitch *= factor;
+      testState.recoilYaw *= factor;
+    }
+    return;
+  }
   const cfg = WEAPONS[testState.weapon];
-  const rate = testState.holdingFire ? cfg.recovery * 0.4 : cfg.recovery;
+  const rate = testState.holdingFire ? cfg.recovery * 0.3 : cfg.recovery * 1.6;
   const factor = Math.exp(-rate * dt);
   testState.recoilPitch *= factor;
   testState.recoilYaw *= factor;
@@ -255,6 +388,8 @@ function updateRecoilRecovery(dt) {
 function resetRecoil() {
   testState.recoilPitch = 0;
   testState.recoilYaw = 0;
+  testState.shakeX = 0;
+  testState.shakeY = 0;
 }
 
 function vec3(x, y, z) {
@@ -272,6 +407,10 @@ function vecCross(a, b) {
     a.z * b.x - a.x * b.z,
     a.x * b.y - a.y * b.x
   );
+}
+
+function getCameraPos() {
+  return vec3(testState.posX, PLAYER.eyeY + testState.bobOffset, testState.posZ);
 }
 
 function getProjectionScale(viewH) {
@@ -326,18 +465,195 @@ function getCrosshairRay(spreadPx, viewW, viewH) {
 }
 
 function worldToScreen(wx, wy, wz, viewW, viewH) {
+  const cam = getCameraPos();
+  const rx = wx - cam.x;
+  const ry = wy - cam.y;
+  const rz = wz - cam.z;
   const { forward, right, up } = getCameraBasis();
-  const depth = wx * forward.x + wy * forward.y + wz * forward.z;
+  const depth = rx * forward.x + ry * forward.y + rz * forward.z;
   if (depth <= 20) return null;
-  const rx = wx * right.x + wy * right.y + wz * right.z;
-  const ry = wx * up.x + wy * up.y + wz * up.z;
+  const projR = rx * right.x + ry * right.y + rz * right.z;
+  const projU = rx * up.x + ry * up.y + rz * up.z;
   const scale = getProjectionScale(viewH);
   return {
-    sx: viewW / 2 + (rx / depth) * scale,
-    sy: viewH / 2 - (ry / depth) * scale,
+    sx: viewW / 2 + (projR / depth) * scale,
+    sy: viewH / 2 - (projU / depth) * scale,
     scale: scale / depth,
     depth,
   };
+}
+
+function buildRangeTargets() {
+  return RANGE_LAYOUT.map(([x, z, y, scale], i) => ({
+    id: `bot-${i}`,
+    x,
+    y,
+    z,
+    r: 40 * scale,
+    scale,
+    hit: false,
+    active: false,
+    respawnAt: 0,
+    hitFlash: 0,
+    lane: x < -100 ? 0 : x > 100 ? 2 : 1,
+    distLabel: z > -650 ? "근" : z > -950 ? "중" : "원",
+  }));
+}
+
+function initRangeSession() {
+  testState.rangeTargets = buildRangeTargets();
+  testState.targets = [];
+  testState.centerTarget = null;
+  testState.activeTargetId = null;
+
+  if (testState.mode === "spray") {
+    testState.centerTarget = {
+      id: "spray-wall",
+      x: 0,
+      y: 50,
+      z: WALL_Z + 40,
+      r: 85,
+      scale: 1,
+      hit: false,
+      active: true,
+      type: "wall",
+    };
+    testState.impacts = [];
+    return;
+  }
+
+  if (testState.mode === "practice") {
+    testState.rangeTargets.forEach((t) => {
+      t.hit = false;
+      t.active = true;
+      t.respawnAt = 0;
+      t.hitFlash = 0;
+    });
+    return;
+  }
+
+  if (testState.mode === "reaction") {
+    spawnNextReactionTarget();
+    return;
+  }
+
+  if (testState.mode === "accuracy") {
+    activateNextAccuracyTarget();
+  }
+}
+
+function getActiveTargets() {
+  if (testState.mode === "spray" && testState.centerTarget) return [testState.centerTarget];
+  if (testState.mode === "reaction") {
+    return testState.rangeTargets.filter((t) => t.id === testState.activeTargetId && !t.hit);
+  }
+  if (testState.mode === "accuracy") {
+    return testState.rangeTargets.filter((t) => t.active && !t.hit);
+  }
+  return testState.rangeTargets.filter((t) => !t.hit || t.hitFlash > 0);
+}
+
+function onTargetHit(target, now) {
+  target.hit = true;
+  target.hitFlash = 1;
+  target.active = false;
+
+  if (testState.mode === "practice") {
+    target.respawnAt = now + 1400;
+    return;
+  }
+  if (testState.mode === "reaction") {
+    testState.reactionTimes.push(now - testState.targetSpawnAt);
+    spawnNextReactionTarget();
+    return;
+  }
+  if (testState.mode === "accuracy") {
+    testState.targetsRemaining -= 1;
+    if (testState.targetsRemaining <= 0) finishTest();
+    else activateNextAccuracyTarget();
+  }
+}
+
+function spawnNextReactionTarget() {
+  const pool = testState.rangeTargets.filter((t) => !t.hit);
+  testState.rangeTargets.forEach((t) => {
+    t.active = false;
+  });
+  if (!pool.length) {
+    testState.rangeTargets.forEach((t) => {
+      t.hit = false;
+      t.hitFlash = 0;
+      t.respawnAt = 0;
+    });
+  }
+  const available = testState.rangeTargets.filter((t) => !t.hit);
+  if (!available.length) return;
+  const pick = available[Math.floor(Math.random() * available.length)];
+  pick.active = true;
+  testState.activeTargetId = pick.id;
+  testState.targetSpawnAt = performance.now();
+}
+
+function activateNextAccuracyTarget() {
+  testState.rangeTargets.forEach((t) => {
+    t.active = false;
+  });
+  const pool = testState.rangeTargets.filter((t) => !t.hit);
+  if (!pool.length) {
+    testState.rangeTargets.forEach((t) => {
+      t.hit = false;
+      t.hitFlash = 0;
+    });
+  }
+  const available = testState.rangeTargets.filter((t) => !t.hit);
+  if (!available.length) return;
+  const pick = available[Math.floor(Math.random() * available.length)];
+  pick.active = true;
+  testState.activeTargetId = pick.id;
+}
+
+function updateRangeTargets(dt) {
+  const now = performance.now();
+  for (const t of testState.rangeTargets) {
+    if (t.hitFlash > 0) t.hitFlash = Math.max(0, t.hitFlash - dt * 3.5);
+    if (testState.mode === "practice" && t.hit && t.respawnAt && now >= t.respawnAt) {
+      t.hit = false;
+      t.active = true;
+      t.respawnAt = 0;
+      t.hitFlash = 0;
+    }
+  }
+}
+
+function updatePlayerMovement(dt) {
+  if (!testState.running || !testState.locked) {
+    testState.bobOffset *= 0.85;
+    return;
+  }
+  let mx = 0;
+  let mz = 0;
+  if (testState.keys.left) mx -= 1;
+  if (testState.keys.right) mx += 1;
+  if (testState.keys.forward) mz -= 1;
+  if (testState.keys.back) mz += 1;
+  const len = Math.hypot(mx, mz) || 1;
+  mx /= len;
+  mz /= len;
+  testState.posX = clamp(testState.posX + mx * PLAYER.speed * dt, PLAYER.boundsX[0], PLAYER.boundsX[1]);
+  testState.posZ = clamp(testState.posZ + mz * PLAYER.speed * dt, PLAYER.boundsZ[0], PLAYER.boundsZ[1]);
+  if (mx !== 0 || mz !== 0) {
+    testState.bobPhase += dt * 11;
+    testState.bobOffset = Math.sin(testState.bobPhase) * 4;
+  } else {
+    testState.bobOffset *= 0.85;
+  }
+}
+
+function clearMovementKeys() {
+  testState.keys.left = false;
+  testState.keys.right = false;
+  testState.keys.forward = false;
+  testState.keys.back = false;
 }
 
 function spawnWallTarget(centered = false) {
@@ -371,8 +687,9 @@ function canFireNow() {
 }
 
 function getAimRay(spreadPx, viewW, viewH) {
-  const ray = getCrosshairRay(spreadPx, viewW, viewH);
-  return { dx: ray.x, dy: ray.y, dz: ray.z };
+  const cam = getCameraPos();
+  const dir = getCrosshairRay(spreadPx, viewW, viewH);
+  return { ox: cam.x, oy: cam.y, oz: cam.z, dx: dir.x, dy: dir.y, dz: dir.z };
 }
 
 function rayHitSphere(ray, target) {
@@ -380,23 +697,33 @@ function rayHitSphere(ray, target) {
 }
 
 function rayHitSphereDetailed(ray, target) {
-  const ocX = -target.x;
-  const ocY = -target.y;
-  const ocZ = -target.z;
+  const ocX = ray.ox - target.x;
+  const ocY = ray.oy - target.y;
+  const ocZ = ray.oz - target.z;
   const b = 2 * (ocX * ray.dx + ocY * ray.dy + ocZ * ray.dz);
   const c = ocX * ocX + ocY * ocY + ocZ * ocZ - target.r * target.r;
   const disc = b * b - 4 * c;
   if (disc < 0) return { hit: false };
   const t = (-b - Math.sqrt(disc)) / 2;
   if (t <= 0) return { hit: false };
-  return { hit: true, t, x: ray.dx * t, y: ray.dy * t, z: ray.dz * t };
+  return {
+    hit: true,
+    t,
+    x: ray.ox + ray.dx * t,
+    y: ray.oy + ray.dy * t,
+    z: ray.oz + ray.dz * t,
+  };
 }
 
 function rayWallHit(ray, wallZ = WALL_Z) {
   if (ray.dz >= -0.0001) return null;
-  const t = wallZ / ray.dz;
+  const t = (wallZ - ray.oz) / ray.dz;
   if (t <= 0) return null;
-  return { x: ray.dx * t, y: ray.dy * t, z: wallZ };
+  return {
+    x: ray.ox + ray.dx * t,
+    y: ray.oy + ray.dy * t,
+    z: wallZ,
+  };
 }
 
 function fireBullet() {
@@ -415,26 +742,19 @@ function fireBullet() {
   let hit = false;
   let impactPoint = null;
 
-  const checkList =
-    testState.mode === "spray" && testState.centerTarget
-      ? [testState.centerTarget]
-      : testState.targets.filter((t) => !t.hit);
+  const checkList = getActiveTargets();
 
   for (const t of checkList) {
+    if (t.hit && testState.mode !== "spray" && testState.mode !== "practice") continue;
     const hitInfo = rayHitSphereDetailed(ray, t);
     if (hitInfo.hit) {
       hit = true;
       impactPoint = { x: hitInfo.x, y: hitInfo.y, z: hitInfo.z };
-      if (testState.mode !== "spray") t.hit = true;
       testState.hits += 1;
-
-      if (testState.mode === "reaction") {
-        testState.reactionTimes.push(now - testState.targetSpawnAt);
-        spawnNextReactionTarget();
-      } else if (testState.mode === "accuracy") {
-        testState.targetsRemaining -= 1;
-        if (testState.targetsRemaining <= 0) finishTest();
-        else testState.targets.push(spawnWallTarget(false));
+      if (testState.mode === "spray") {
+        /* wall target stays */
+      } else {
+        onTargetHit(t, now);
       }
       break;
     }
@@ -449,13 +769,8 @@ function fireBullet() {
     if (testState.impacts.length > 120) testState.impacts.shift();
   }
 
-  queueRecoilKick();
+  applyRecoilKick();
   updateStatsUI();
-}
-
-function spawnNextReactionTarget() {
-  testState.targets = [spawnWallTarget(false)];
-  testState.targetSpawnAt = performance.now();
 }
 
 function startAutoFire() {
@@ -490,16 +805,16 @@ function resizeCanvas() {
 }
 
 function drawFpsScene(ctx, w, h) {
-  const sky = ctx.createLinearGradient(0, 0, 0, h * 0.55);
-  sky.addColorStop(0, "#1a2030");
-  sky.addColorStop(1, "#2a3348");
+  const sky = ctx.createLinearGradient(0, 0, 0, h * 0.42);
+  sky.addColorStop(0, "#8ec4c8");
+  sky.addColorStop(1, "#d4c4a8");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, w, h);
 
-  const floorY = h * 0.58;
+  const floorY = h * 0.52;
   const floor = ctx.createLinearGradient(0, floorY, 0, h);
-  floor.addColorStop(0, "#3d4658");
-  floor.addColorStop(1, "#151820");
+  floor.addColorStop(0, "#ece6dc");
+  floor.addColorStop(1, "#c8bfb0");
   ctx.fillStyle = floor;
   ctx.beginPath();
   ctx.moveTo(0, floorY);
@@ -509,38 +824,17 @@ function drawFpsScene(ctx, w, h) {
   ctx.closePath();
   ctx.fill();
 
-  const vanish = worldToScreen(0, -120, -1400, w, h);
-  const vx = vanish ? vanish.sx : w / 2;
-  const vy = vanish ? vanish.sy : floorY;
-
-  ctx.strokeStyle = "rgba(255,255,255,0.06)";
-  ctx.lineWidth = 1;
-  for (let i = -8; i <= 8; i += 1) {
-    const left = worldToScreen(i * 180, -200, -1400, w, h);
-    const right = worldToScreen(i * 180, -200, -200, w, h);
-    if (!left || !right) continue;
-    ctx.beginPath();
-    ctx.moveTo(left.sx, left.sy);
-    ctx.lineTo(right.sx, right.sy);
-    ctx.stroke();
-  }
-  for (let d = 0; d <= 8; d += 1) {
-    const z = -200 - d * 150;
-    const p1 = worldToScreen(-900, -200, z, w, h);
-    const p2 = worldToScreen(900, -200, z, w, h);
-    if (!p1 || !p2) continue;
-    ctx.beginPath();
-    ctx.moveTo(p1.sx, p1.sy);
-    ctx.lineTo(p2.sx, p2.sy);
-    ctx.stroke();
-  }
-
-  const wallTL = worldToScreen(-950, 320, -1400, w, h);
-  const wallTR = worldToScreen(950, 320, -1400, w, h);
-  const wallBL = worldToScreen(-950, -280, -1400, w, h);
-  const wallBR = worldToScreen(950, -280, -1400, w, h);
+  const backWallZ = WALL_Z;
+  const wallTL = worldToScreen(-980, 340, backWallZ, w, h);
+  const wallTR = worldToScreen(980, 340, backWallZ, w, h);
+  const wallBL = worldToScreen(-980, -320, backWallZ, w, h);
+  const wallBR = worldToScreen(980, -320, backWallZ, w, h);
   if (wallTL && wallTR && wallBL && wallBR) {
-    ctx.fillStyle = "#252b3a";
+    const wallGrad = ctx.createLinearGradient(wallTL.sx, wallTL.sy, wallBR.sx, wallBR.sy);
+    wallGrad.addColorStop(0, "#e8dcc8");
+    wallGrad.addColorStop(0.5, "#ddd0ba");
+    wallGrad.addColorStop(1, "#cfc2aa");
+    ctx.fillStyle = wallGrad;
     ctx.beginPath();
     ctx.moveTo(wallTL.sx, wallTL.sy);
     ctx.lineTo(wallTR.sx, wallTR.sy);
@@ -548,37 +842,186 @@ function drawFpsScene(ctx, w, h) {
     ctx.lineTo(wallBL.sx, wallBL.sy);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = "rgba(255,70,85,0.25)";
+
+    ctx.strokeStyle = "rgba(78, 186, 191, 0.55)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    const cx = (wallTL.sx + wallTR.sx) / 2;
+    const cy = (wallTL.sy + wallBR.sy) / 2;
+    const rw = Math.abs(wallTR.sx - wallTL.sx);
+    ctx.strokeStyle = "rgba(249, 158, 26, 0.35)";
     ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rw * 0.12, 0, Math.PI * 2);
     ctx.stroke();
   }
 
-  ctx.strokeStyle = "rgba(255,255,255,0.04)";
-  ctx.beginPath();
-  ctx.moveTo(0, vy);
-  ctx.lineTo(w, vy);
-  ctx.stroke();
+  const sideL = worldToScreen(-980, 340, -100, w, h);
+  const sideR = worldToScreen(980, 340, -100, w, h);
+  if (sideL && sideR && wallTL) {
+    ctx.fillStyle = "#d9ccb6";
+    ctx.beginPath();
+    ctx.moveTo(0, floorY);
+    ctx.lineTo(sideL.sx, sideL.sy);
+    ctx.lineTo(wallTL.sx, wallTL.sy);
+    ctx.lineTo(wallBL.sx, wallBL.sy);
+    ctx.lineTo(sideL.sx, sideL.sy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(w, floorY);
+    ctx.lineTo(sideR.sx, sideR.sy);
+    ctx.lineTo(wallTR.sx, wallTR.sy);
+    ctx.lineTo(wallBR.sx, wallBR.sy);
+    ctx.lineTo(sideR.sx, sideR.sy);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = "rgba(120, 110, 95, 0.22)";
+  ctx.lineWidth = 2;
+  for (const laneX of [-400, 0, 400]) {
+    const a = worldToScreen(laneX, -240, -180, w, h);
+    const b = worldToScreen(laneX, -240, backWallZ, w, h);
+    if (!a || !b) continue;
+    ctx.beginPath();
+    ctx.moveTo(a.sx, a.sy);
+    ctx.lineTo(b.sx, b.sy);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "rgba(120, 110, 95, 0.18)";
+  ctx.lineWidth = 1;
+  for (let d = 0; d <= 10; d += 1) {
+    const z = -220 - d * 120;
+    const p1 = worldToScreen(-920, -240, z, w, h);
+    const p2 = worldToScreen(920, -240, z, w, h);
+    if (!p1 || !p2) continue;
+    ctx.beginPath();
+    ctx.moveTo(p1.sx, p1.sy);
+    ctx.lineTo(p2.sx, p2.sy);
+    ctx.stroke();
+    if (d % 2 === 0) {
+      const label = worldToScreen(-860, -200, z, w, h);
+      if (label) {
+        ctx.fillStyle = "rgba(90, 80, 70, 0.45)";
+        ctx.font = "500 11px var(--font, sans-serif)";
+        ctx.textAlign = "left";
+        ctx.fillText(`${Math.round(Math.abs(z) / 100)}m`, label.sx, label.sy);
+      }
+    }
+  }
+
+  for (const z of [-520, -820, -1080]) {
+    const banner = worldToScreen(0, 280, z, w, h);
+    if (!banner) continue;
+    ctx.fillStyle = "rgba(78, 186, 191, 0.85)";
+    const bw = 90 * banner.scale;
+    const bh = 18 * banner.scale;
+    ctx.fillRect(banner.sx - bw / 2, banner.sy - bh / 2, bw, bh);
+  }
+
+  const playerFoot = worldToScreen(testState.posX, -240, testState.posZ + 40, w, h);
+  if (playerFoot && testState.running) {
+    ctx.fillStyle = "rgba(78, 186, 191, 0.25)";
+    ctx.beginPath();
+    ctx.ellipse(playerFoot.sx, playerFoot.sy, 28, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
-function drawTarget3D(ctx, t, w, h) {
-  if (t.hit && testState.mode !== "spray") return;
-  const p = worldToScreen(t.x, t.y, t.z, w, h);
-  if (!p || p.sx < -80 || p.sx > w + 80 || p.sy < -80 || p.sy > h + 80) return;
-  const r = Math.max(8, t.r * p.scale);
+function drawPedestal(ctx, t, w, h) {
+  const base = worldToScreen(t.x, -240, t.z, w, h);
+  const top = worldToScreen(t.x, t.y - t.r - 20, t.z, w, h);
+  if (!base || !top) return;
+  const pw = Math.max(14, 36 * base.scale);
+  const ph = base.sy - top.sy;
+  ctx.fillStyle = "rgba(60, 55, 50, 0.35)";
+  ctx.fillRect(base.sx - pw / 2, top.sy, pw, ph);
+  ctx.fillStyle = "rgba(90, 85, 78, 0.5)";
+  ctx.fillRect(base.sx - pw * 0.7, base.sy - 6, pw * 1.4, 6);
+}
 
+function drawBotDummy(ctx, t, w, h) {
+  if (t.type === "wall") {
+    drawWallTarget(ctx, t, w, h);
+    return;
+  }
+  if (t.hit && t.hitFlash <= 0 && testState.mode !== "practice") return;
+  if (t.hit && testState.mode === "practice" && t.respawnAt && performance.now() < t.respawnAt) return;
+
+  const p = worldToScreen(t.x, t.y, t.z, w, h);
+  if (!p || p.sx < -120 || p.sx > w + 120 || p.sy < -120 || p.sy > h + 120) return;
+
+  const isActive =
+    testState.mode === "practice" ||
+    t.active ||
+    (testState.mode === "spray" && t.type === "wall");
+  const laneColor = LANE_COLORS[t.lane] || "#4ebabf";
+  const alpha = t.hit ? Math.max(0.15, t.hitFlash * 0.85) : 1;
+  const headR = Math.max(7, 18 * p.scale);
+  const bodyW = Math.max(12, 28 * p.scale);
+  const bodyH = Math.max(22, 52 * p.scale);
+  const headY = p.sy - bodyH * 0.55;
+  const bodyY = p.sy + bodyH * 0.1;
+
+  drawPedestal(ctx, t, w, h);
+
+  if (isActive && (t.active || testState.mode === "practice")) {
+    ctx.save();
+    ctx.shadowColor = laneColor;
+    ctx.shadowBlur = t.active ? 18 : 8;
+  }
+
+  ctx.globalAlpha = alpha;
+
+  ctx.fillStyle = isActive ? laneColor : "rgba(130, 125, 118, 0.55)";
+  ctx.fillRect(p.sx - bodyW / 2, bodyY - bodyH / 2, bodyW, bodyH);
+  ctx.beginPath();
+  ctx.arc(p.sx, headY, headR, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (t.active) {
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = Math.max(2, 3 * p.scale);
+    ctx.beginPath();
+    ctx.arc(p.sx, headY, headR + 6, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  if (isActive && (t.active || testState.mode === "practice")) ctx.restore();
+
+  if (t.hit && t.hitFlash > 0) {
+    ctx.fillStyle = `rgba(255, 255, 255, ${t.hitFlash * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(p.sx, p.sy - bodyH * 0.2, headR * 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawWallTarget(ctx, t, w, h) {
+  const p = worldToScreen(t.x, t.y, t.z, w, h);
+  if (!p) return;
+  const r = Math.max(12, t.r * p.scale);
   ctx.save();
   ctx.beginPath();
   ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(255, 70, 85, 0.3)";
+  ctx.fillStyle = "rgba(249, 158, 26, 0.22)";
   ctx.fill();
-  ctx.strokeStyle = "#ff4655";
-  ctx.lineWidth = Math.max(1.5, 2 * p.scale);
+  ctx.strokeStyle = "#f99e1a";
+  ctx.lineWidth = Math.max(2, 3 * p.scale);
   ctx.stroke();
   ctx.beginPath();
   ctx.arc(p.sx, p.sy, r * 0.35, 0, Math.PI * 2);
-  ctx.fillStyle = "#ff4655";
+  ctx.fillStyle = "#f99e1a";
   ctx.fill();
   ctx.restore();
+}
+
+function drawTarget3D(ctx, t, w, h) {
+  drawBotDummy(ctx, t, w, h);
 }
 
 function drawImpacts(ctx, w, h) {
@@ -588,7 +1031,7 @@ function drawImpacts(ctx, w, h) {
     const r = Math.max(2.5, 5 * p.scale);
     ctx.beginPath();
     ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
-    ctx.fillStyle = imp.hit ? "rgba(59, 130, 246, 0.95)" : "rgba(255,255,255,0.45)";
+    ctx.fillStyle = imp.hit ? "rgba(249, 158, 26, 0.95)" : "rgba(180, 170, 155, 0.5)";
     ctx.fill();
   }
 }
@@ -603,6 +1046,48 @@ function drawCrosshairOverlay(ctx, w, h) {
   if (!octx) return;
   drawCrosshair(octx, testState.crosshairCode, 256);
   ctx.drawImage(off, (w - size) / 2, (h - size) / 2, size, size);
+}
+
+function drawWeaponView(ctx, w, h) {
+  if (!testState.locked || !testState.running) return;
+  const gunW = w * 0.22;
+  const gunH = h * 0.18;
+  const gx = w / 2 - gunW * 0.35;
+  const gy = h - gunH * 0.55;
+  ctx.save();
+  ctx.fillStyle = "rgba(30, 28, 26, 0.75)";
+  ctx.beginPath();
+  ctx.moveTo(gx, gy + gunH);
+  ctx.lineTo(gx + gunW * 0.35, gy);
+  ctx.lineTo(gx + gunW, gy + gunH * 0.35);
+  ctx.lineTo(gx + gunW * 0.55, gy + gunH);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "rgba(60, 58, 55, 0.6)";
+  ctx.fillRect(gx + gunW * 0.15, gy + gunH * 0.55, gunW * 0.65, gunH * 0.35);
+  ctx.restore();
+}
+
+function drawMovementHud(ctx, w, h) {
+  if (!testState.locked || !testState.running) return;
+  const keys = [
+    { label: "W", on: testState.keys.forward, x: 72, y: h - 92 },
+    { label: "A", on: testState.keys.left, x: 52, y: h - 72 },
+    { label: "S", on: testState.keys.back, x: 72, y: h - 52 },
+    { label: "D", on: testState.keys.right, x: 92, y: h - 72 },
+  ];
+  ctx.fillStyle = "rgba(0,0,0,0.4)";
+  ctx.fillRect(40, h - 104, 72, 72);
+  ctx.strokeStyle = "rgba(255,255,255,0.1)";
+  ctx.strokeRect(40, h - 104, 72, 72);
+  ctx.font = "600 11px var(--font, sans-serif)";
+  ctx.textAlign = "center";
+  for (const k of keys) {
+    ctx.fillStyle = k.on ? "rgba(78, 186, 191, 0.95)" : "rgba(255,255,255,0.14)";
+    ctx.fillRect(k.x - 11, k.y - 11, 22, 22);
+    ctx.fillStyle = k.on ? "#fff" : "#b8c0cc";
+    ctx.fillText(k.label, k.x, k.y + 4);
+  }
 }
 
 function drawHud(ctx, w, h) {
@@ -622,7 +1107,7 @@ function drawHud(ctx, w, h) {
     ctx.fillText("사격장을 클릭하여 FPS 모드 진입", w / 2, h / 2 - 10);
     ctx.fillStyle = "#9aa3b2";
     ctx.font = "400 13px var(--font, sans-serif)";
-    ctx.fillText("마우스로 시점 회전 · 좌클릭 발사 · ESC 종료", w / 2, h / 2 + 18);
+    ctx.fillText("클릭 후 WASD 이동 · 마우스 조준 · 좌클릭 발사", w / 2, h / 2 + 18);
   } else if (!testState.running && !testState.finished) {
     ctx.fillStyle = "rgba(0,0,0,0.5)";
     ctx.fillRect(0, 0, w, h);
@@ -632,16 +1117,25 @@ function drawHud(ctx, w, h) {
     ctx.fillText("좌측에서 설정 후 시작 버튼을 누르세요", w / 2, h / 2 - 8);
     ctx.fillStyle = "#9aa3b2";
     ctx.font = "400 13px var(--font, sans-serif)";
-    ctx.fillText("1인칭 시점 · 조준점 테스트", w / 2, h / 2 + 18);
+    ctx.fillText("훈련장 · 이동하며 사격 연습", w / 2, h / 2 + 18);
+  }
+
+  if (testState.locked && testState.mode === "practice") {
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    ctx.fillRect(w - 148, 12, 136, 28);
+    ctx.fillStyle = "#4ebabf";
+    ctx.font = "600 12px var(--font, sans-serif)";
+    ctx.textAlign = "right";
+    ctx.fillText("훈련장 · 자유 연습", w - 16, 31);
   }
 
   if (testState.locked) {
     ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillRect(8, h - 36, 130, 24);
+    ctx.fillRect(8, h - 36, 108, 24);
     ctx.fillStyle = "#9aa3b2";
     ctx.font = "500 11px var(--font, sans-serif)";
     ctx.textAlign = "left";
-    ctx.fillText("ESC · FPS 모드 해제", 16, h - 19);
+    ctx.fillText("ESC · 종료", 16, h - 19);
   }
 }
 
@@ -653,14 +1147,24 @@ function renderFrame() {
   const { w, h } = getViewSize();
 
   ctx.clearRect(0, 0, w, h);
+  ctx.save();
+  ctx.translate(testState.shakeX, testState.shakeY);
   drawFpsScene(ctx, w, h);
 
+  const drawList = [];
   if (testState.mode === "spray" && testState.centerTarget) {
-    drawTarget3D(ctx, testState.centerTarget, w, h);
+    drawList.push(testState.centerTarget);
+  } else {
+    for (const t of testState.rangeTargets) drawList.push(t);
   }
-  testState.targets.forEach((t) => drawTarget3D(ctx, t, w, h));
+  drawList.sort((a, b) => b.z - a.z);
+  for (const t of drawList) drawBotDummy(ctx, t, w, h);
+
   drawImpacts(ctx, w, h);
+  ctx.restore();
   drawCrosshairOverlay(ctx, w, h);
+  drawWeaponView(ctx, w, h);
+  drawMovementHud(ctx, w, h);
   drawHud(ctx, w, h);
 }
 
@@ -669,6 +1173,9 @@ function renderLoop(now) {
   const dt = Math.min(0.05, (t - lastFrameTime) / 1000);
   lastFrameTime = t;
   updateRecoilRecovery(dt);
+  updateScreenShake(dt);
+  updatePlayerMovement(dt);
+  updateRangeTargets(dt);
   renderFrame();
   requestAnimationFrame(renderLoop);
 }
@@ -690,6 +1197,8 @@ function updateStatsUI() {
       testEls.statBest.textContent = `${best.hits}명중 · ${formatMs(best.avgReaction)}`;
     } else if (testState.mode === "accuracy") {
       testEls.statBest.textContent = `${formatPct(best.accuracy)} · ${formatMs(best.timeMs)}`;
+    } else if (testState.mode === "practice") {
+      testEls.statBest.textContent = `${best.hits}명중 · ${formatPct(best.accuracy)}`;
     } else {
       testEls.statBest.textContent = `${formatPct(best.accuracy)} · ${best.spreadPx}px`;
     }
@@ -708,6 +1217,10 @@ function updateStatsUI() {
       testEls.statExtraRow.hidden = false;
       testEls.statExtraLabel.textContent = "탄착군 분포";
       testEls.statExtra.textContent = `±${calcSpreadRadius().toFixed(0)}px`;
+    } else if (testState.mode === "practice" && testState.running) {
+      testEls.statExtraRow.hidden = false;
+      testEls.statExtraLabel.textContent = "훈련 더미";
+      testEls.statExtra.textContent = `${testState.rangeTargets.length}기`;
     } else {
       testEls.statExtraRow.hidden = true;
     }
@@ -745,6 +1258,8 @@ function evaluateBestRecord() {
       !prev ||
       acc > prev.accuracy ||
       (acc === prev.accuracy && testState.elapsedMs < prev.timeMs);
+  } else if (testState.mode === "practice") {
+    return { isNewBest: false };
   } else {
     if (testState.shots <= 0) return { isNewBest: false };
     const acc = accuracyPct();
@@ -824,12 +1339,19 @@ function clearTestSession() {
   testState.yaw = 0;
   testState.pitch = 0;
   resetRecoil();
+  testState.posX = 0;
+  testState.posZ = 0;
+  testState.bobOffset = 0;
+  testState.bobPhase = 0;
+  clearMovementKeys();
   testState.hits = 0;
   testState.shots = 0;
   testState.reactionTimes = [];
   testState.targets = [];
+  testState.rangeTargets = [];
   testState.impacts = [];
   testState.centerTarget = null;
+  testState.activeTargetId = null;
   testState.elapsedMs = 0;
   testState.timeLeft = 30;
   testState.holdingFire = false;
@@ -858,10 +1380,10 @@ function startTest() {
   syncCrosshairUI();
 
   const startedAt = performance.now();
+  initRangeSession();
 
   if (testState.mode === "reaction") {
     testState.timeLeft = 30;
-    spawnNextReactionTarget();
     testState.timerId = setInterval(() => {
       testState.timeLeft -= 1;
       updateStatsUI();
@@ -873,14 +1395,10 @@ function startTest() {
   } else if (testState.mode === "accuracy") {
     testState.targetsTotal = 50;
     testState.targetsRemaining = 50;
-    testState.targets = [spawnWallTarget(false)];
     testState.timerId = setInterval(() => {
       testState.elapsedMs = performance.now() - startedAt;
       updateStatsUI();
     }, 100);
-  } else {
-    testState.centerTarget = spawnWallTarget(true);
-    testState.impacts = [];
   }
 
   updateStatsUI();
@@ -889,6 +1407,24 @@ function startTest() {
 
 function restartTest() {
   startTest();
+}
+
+function stopTest() {
+  if (!testState.running) return;
+  stopAutoFire();
+  exitPointerLock();
+  if (testState.timerId) {
+    clearInterval(testState.timerId);
+    testState.timerId = null;
+  }
+  testState.running = false;
+  testState.finished = false;
+  testState.holdingFire = false;
+  testState.zoomed = false;
+  clearMovementKeys();
+  resetRecoil();
+  updateStatsUI();
+  showTestToast("테스트를 종료했습니다. 설정을 변경할 수 있습니다.");
 }
 
 function syncCrosshairUI() {
@@ -928,8 +1464,8 @@ function bindWeaponModeSelectors() {
     btn.className = "test-option" + (testState.mode === key ? " is-active" : "");
     btn.innerHTML = `<span class="test-option-label">${m.label}</span><span class="test-option-desc">${m.desc}</span>`;
     btn.addEventListener("click", () => {
-      if (testState.running) {
-        showTestToast("테스트 중에는 설정을 변경할 수 없습니다.");
+      if (!canChangeSettings()) {
+        showTestToast("FPS 모드 중에는 설정을 변경할 수 없습니다.");
         return;
       }
       testState.mode = key;
@@ -943,6 +1479,39 @@ function bindWeaponModeSelectors() {
 function requestFpsLock() {
   if (!testState.running || testState.finished || !testEls.canvas) return;
   testEls.canvas.requestPointerLock();
+}
+
+function bindSensitivityControls() {
+  if (!testEls.sensSlider) return;
+
+  testEls.sensSlider.addEventListener("input", () => {
+    if (!canChangeSettings()) {
+      syncSensitivityUI();
+      showTestToast("FPS 모드 중에는 감도를 변경할 수 없습니다.");
+      return;
+    }
+    setSensitivity(Number(testEls.sensSlider.value));
+  });
+}
+
+function bindMovementKeys() {
+  const setKey = (code, down) => {
+    if (code === "KeyA") testState.keys.left = down;
+    if (code === "KeyD") testState.keys.right = down;
+    if (code === "KeyW") testState.keys.forward = down;
+    if (code === "KeyS") testState.keys.back = down;
+  };
+
+  document.addEventListener("keydown", (e) => {
+    if (!testState.running || !testState.locked) return;
+    if (!["KeyA", "KeyD", "KeyW", "KeyS"].includes(e.code)) return;
+    e.preventDefault();
+    setKey(e.code, true);
+  });
+
+  document.addEventListener("keyup", (e) => {
+    setKey(e.code, false);
+  });
 }
 
 function bindCanvasEvents() {
@@ -964,8 +1533,9 @@ function bindCanvasEvents() {
 
   document.addEventListener("mousemove", (e) => {
     if (!testState.locked || !testState.running) return;
-    testState.yaw += e.movementX * 0.0022;
-    testState.pitch = clamp(testState.pitch + e.movementY * 0.0022, -1.1, 1.1);
+    const sens = getMouseSensitivity();
+    testState.yaw += e.movementX * sens;
+    testState.pitch = clamp(testState.pitch + e.movementY * sens, -1.1, 1.1);
   });
 
   canvas.addEventListener("mousedown", (e) => {
@@ -1002,7 +1572,10 @@ function bindCanvasEvents() {
   });
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && testState.locked) exitPointerLock();
+    if (e.key !== "Escape") return;
+    if (!testState.running || testState.finished) return;
+    if (testState.locked) exitPointerLock();
+    stopTest();
   });
 }
 
@@ -1014,6 +1587,9 @@ function initTestPage() {
   testEls.modeGroup = document.getElementById("testModeGroup");
   testEls.startBtn = document.getElementById("testStartBtn");
   testEls.restartBtn = document.getElementById("testRestartBtn");
+  testEls.stopBtn = document.getElementById("testStopBtn");
+  testEls.sensSlider = document.getElementById("testSensSlider");
+  testEls.sensValue = document.getElementById("testSensValue");
   testEls.statHits = document.getElementById("statHits");
   testEls.statShots = document.getElementById("statShots");
   testEls.statAccuracy = document.getElementById("statAccuracy");
@@ -1036,14 +1612,19 @@ function initTestPage() {
   clearTestSession();
   setOverlayVisible(testEls.resultOverlay, false);
   testState.crosshairCode = loadActiveCrosshair();
+  testState.sensitivity = loadSensitivity();
   syncCrosshairUI();
+  syncSensitivityUI();
   bindWeaponModeSelectors();
+  bindSensitivityControls();
+  bindMovementKeys();
   bindCanvasEvents();
   updateStatsUI();
   resizeCanvas();
 
   testEls.startBtn?.addEventListener("click", startTest);
   testEls.restartBtn?.addEventListener("click", restartTest);
+  testEls.stopBtn?.addEventListener("click", stopTest);
   testEls.resultCloseBtn?.addEventListener("click", () => {
     hideResultOverlay();
     if (!testState.running) updateStatsUI();
