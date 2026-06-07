@@ -30,73 +30,46 @@ const PLAYER = {
   boundsZ: [-120, 200],
 };
 
-/** OW 훈련장형 거리·열 배치 */
+/** OW 훈련장 거리 구간 */
 const RANGE_ROWS = [
-  { z: -1050, label: "10m", scale: 0.9 },
-  { z: -1650, label: "20m", scale: 0.74 },
-  { z: -2250, label: "30m", scale: 0.6 },
-  { z: -2850, label: "40m", scale: 0.5 },
+  { z: -1050, label: "10m", scale: 0.92, moveSpan: 540 },
+  { z: -1650, label: "20m", scale: 0.76, moveSpan: 500 },
+  { z: -2250, label: "30m", scale: 0.62, moveSpan: 460 },
+  { z: -2850, label: "40m", scale: 0.52, moveSpan: 420 },
 ];
 
-const RANGE_COLS = [-720, -360, 0, 360, 720];
-
-function makeRangeBot(id, x, z, y, scale, platformH = 0) {
-  const lane = x < -180 ? 0 : x > 180 ? 2 : 1;
+function spawnHumanTarget() {
+  const tier = RANGE_ROWS[Math.floor(Math.random() * RANGE_ROWS.length)];
+  const speed = (85 + Math.random() * 175) * (Math.random() < 0.5 ? -1 : 1);
+  const bodyH = 62 * tier.scale;
+  const bodyW = 36 * tier.scale;
+  const y = FLOOR_Y + bodyH * 0.58;
   return {
-    id: `bot-${id}`,
-    baseX: x,
-    x,
+    id: `human-${Math.random().toString(36).slice(2, 9)}`,
+    type: "human",
+    x: (Math.random() - 0.5) * tier.moveSpan * 0.35,
     y,
-    z,
-    r: 34 * scale,
-    scale,
-    platformH,
-    moveRange: 48 + (id % 4) * 22,
-    moveSpeed: 0.65 + (id % 5) * 0.12,
-    movePhase: (id * 1.47) % (Math.PI * 2),
+    z: tier.z,
+    scale: tier.scale,
+    distLabel: tier.label,
+    distM: parseInt(tier.label, 10),
+    bodyH,
+    bodyW,
+    headR: 15 * tier.scale,
+    r: 30 * tier.scale,
+    moveMinX: -tier.moveSpan / 2,
+    moveMaxX: tier.moveSpan / 2,
+    moveVelX: speed,
+    platformH: 0,
     hit: false,
-    active: false,
+    active: true,
     respawnAt: 0,
     hitFlash: 0,
-    lane,
   };
 }
 
-function buildRangeLayout() {
-  const bots = [];
-  let id = 0;
-
-  RANGE_COLS.forEach((x, i) => {
-    bots.push(makeRangeBot(id++, x, RANGE_ROWS[0].z, 88 + (i % 3) * 22, RANGE_ROWS[0].scale));
-  });
-
-  bots.push(makeRangeBot(id++, -720, RANGE_ROWS[1].z, 235, RANGE_ROWS[1].scale, 150));
-  bots.push(makeRangeBot(id++, -720, RANGE_ROWS[1].z, 52, RANGE_ROWS[1].scale));
-  bots.push(makeRangeBot(id++, -360, RANGE_ROWS[1].z, 82, RANGE_ROWS[1].scale));
-  bots.push(makeRangeBot(id++, 0, RANGE_ROWS[1].z, 102, RANGE_ROWS[1].scale));
-  bots.push(makeRangeBot(id++, 360, RANGE_ROWS[1].z, 72, RANGE_ROWS[1].scale));
-  bots.push(makeRangeBot(id++, 720, RANGE_ROWS[1].z, 218, RANGE_ROWS[1].scale, 140));
-  bots.push(makeRangeBot(id++, 720, RANGE_ROWS[1].z, 42, RANGE_ROWS[1].scale));
-
-  const row3Heights = [105, 145, 78, 165, 98];
-  RANGE_COLS.forEach((x, i) => {
-    bots.push(
-      makeRangeBot(
-        id++,
-        x,
-        RANGE_ROWS[2].z,
-        row3Heights[i],
-        RANGE_ROWS[2].scale,
-        i === 0 || i === 4 ? 85 : 0
-      )
-    );
-  });
-
-  [-480, 0, 480].forEach((x, i) => {
-    bots.push(makeRangeBot(id++, x, RANGE_ROWS[3].z, 92 + i * 18, RANGE_ROWS[3].scale));
-  });
-
-  return bots;
+function buildRangeTargets() {
+  return [spawnHumanTarget()];
 }
 
 const LANE_COLORS = ["#4ebabf", "#f99e1a", "#e85d75"];
@@ -182,7 +155,7 @@ const WEAPONS = {
 const MODES = {
   practice: {
     label: "훈련장 연습",
-    desc: "고정 더미를 맞히며 자유롭게 연습합니다.",
+    desc: "한 번에 하나씩 등장하는 이동 표적을 맞히세요.",
   },
   reaction: {
     label: "반응속도 테스트",
@@ -211,6 +184,8 @@ const testState = {
   bobPhase: 0,
   bobOffset: 0,
   keys: { left: false, right: false, forward: false, back: false },
+  velX: 0,
+  velZ: 0,
   activeTargetId: null,
   rangeTargets: [],
   sensitivity: SENS_DEFAULT,
@@ -266,13 +241,31 @@ function clamp(v, min, max) {
 function getSpreadRadius(weaponKey, shotCount, zoomed) {
   const w = WEAPONS[weaponKey];
   const rules = weaponKey === "operator" && zoomed ? w.zoomSpread : w.spread;
+  let spread = 0;
   for (const rule of rules) {
     if (shotCount >= rule.min && shotCount <= rule.max) {
-      if (rule.rMin === rule.rMax) return rule.rMin;
-      return rule.rMin + Math.random() * (rule.rMax - rule.rMin);
+      if (rule.rMin === rule.rMax) spread = rule.rMin;
+      else spread = rule.rMin + Math.random() * (rule.rMax - rule.rMin);
+      break;
     }
   }
-  return 0;
+  return spread + getMovementSpreadBonus();
+}
+
+function isPlayerMoving() {
+  return Math.hypot(testState.velX, testState.velZ) > 25;
+}
+
+function getMovementSpreadBonus() {
+  if (!isPlayerMoving()) return 0;
+  const ratio = clamp(Math.hypot(testState.velX, testState.velZ) / PLAYER.speed, 0, 1);
+  return 14 + ratio * 42;
+}
+
+function getMovementRecoilMult() {
+  if (!isPlayerMoving()) return 1;
+  const ratio = clamp(Math.hypot(testState.velX, testState.velZ) / PLAYER.speed, 0, 1);
+  return 1 + ratio * 0.55;
 }
 
 function loadActiveCrosshair() {
@@ -410,13 +403,14 @@ function applyScreenShake(intensity) {
 function applyRecoilKick() {
   const cfg = WEAPONS[testState.weapon];
   const step = getSprayStep(testState.weapon, testState.shotCount);
-  testState.recoilPitch += step.p;
+  const moveMult = getMovementRecoilMult();
+  testState.recoilPitch += step.p * moveMult;
   if (cfg.auto) {
-    testState.recoilYaw += step.y;
+    testState.recoilYaw += step.y * moveMult;
     testState.recoilYaw = clamp(testState.recoilYaw, -0.35, 0.35);
   }
   testState.recoilPitch = Math.min(testState.recoilPitch, 0.55);
-  applyScreenShake(cfg.shake || 5);
+  applyScreenShake((cfg.shake || 5) * moveMult);
 }
 
 function updateScreenShake(dt) {
@@ -543,17 +537,17 @@ function worldToScreen(wx, wy, wz, viewW, viewH) {
   };
 }
 
-function buildRangeTargets() {
-  return buildRangeLayout();
+function getCurrentHumanTarget() {
+  return testState.rangeTargets.find((t) => t.type === "human" && !t.hit) || null;
 }
 
 function initRangeSession() {
-  testState.rangeTargets = buildRangeTargets();
   testState.targets = [];
   testState.centerTarget = null;
   testState.activeTargetId = null;
 
   if (testState.mode === "spray") {
+    testState.rangeTargets = [];
     testState.centerTarget = {
       id: "spray-wall",
       x: 0,
@@ -569,115 +563,85 @@ function initRangeSession() {
     return;
   }
 
-  if (testState.mode === "practice") {
-    testState.rangeTargets.forEach((t) => {
-      t.hit = false;
-      t.active = true;
-      t.respawnAt = 0;
-      t.hitFlash = 0;
-    });
-    return;
-  }
-
-  if (testState.mode === "reaction") {
-    spawnNextReactionTarget();
-    return;
-  }
-
-  if (testState.mode === "accuracy") {
-    activateNextAccuracyTarget();
-  }
+  const bot = spawnHumanTarget();
+  testState.rangeTargets = [bot];
+  testState.activeTargetId = bot.id;
+  testState.targetSpawnAt = performance.now();
 }
 
 function getActiveTargets() {
   if (testState.mode === "spray" && testState.centerTarget) return [testState.centerTarget];
-  if (testState.mode === "reaction") {
-    return testState.rangeTargets.filter((t) => t.id === testState.activeTargetId && !t.hit);
-  }
-  if (testState.mode === "accuracy") {
-    return testState.rangeTargets.filter((t) => t.active && !t.hit);
-  }
-  return testState.rangeTargets.filter((t) => !t.hit || t.hitFlash > 0);
+  return testState.rangeTargets.filter((t) => t.active && !t.hit);
 }
 
 function onTargetHit(target, now) {
   target.hit = true;
   target.hitFlash = 1;
   target.active = false;
+  target.respawnAt = now + (testState.mode === "practice" ? 750 : 550);
 
-  if (testState.mode === "practice") {
-    target.respawnAt = now + 1400;
-    return;
-  }
   if (testState.mode === "reaction") {
     testState.reactionTimes.push(now - testState.targetSpawnAt);
-    spawnNextReactionTarget();
-    return;
-  }
-  if (testState.mode === "accuracy") {
+  } else if (testState.mode === "accuracy") {
     testState.targetsRemaining -= 1;
     if (testState.targetsRemaining <= 0) finishTest();
-    else activateNextAccuracyTarget();
   }
 }
 
 function spawnNextReactionTarget() {
-  const pool = testState.rangeTargets.filter((t) => !t.hit);
-  testState.rangeTargets.forEach((t) => {
-    t.active = false;
-  });
-  if (!pool.length) {
-    testState.rangeTargets.forEach((t) => {
-      t.hit = false;
-      t.hitFlash = 0;
-      t.respawnAt = 0;
-    });
-  }
-  const available = testState.rangeTargets.filter((t) => !t.hit);
-  if (!available.length) return;
-  const pick = available[Math.floor(Math.random() * available.length)];
-  pick.active = true;
-  testState.activeTargetId = pick.id;
+  const bot = spawnHumanTarget();
+  testState.rangeTargets = [bot];
+  testState.activeTargetId = bot.id;
   testState.targetSpawnAt = performance.now();
 }
 
 function activateNextAccuracyTarget() {
-  testState.rangeTargets.forEach((t) => {
-    t.active = false;
-  });
-  const pool = testState.rangeTargets.filter((t) => !t.hit);
-  if (!pool.length) {
-    testState.rangeTargets.forEach((t) => {
-      t.hit = false;
-      t.hitFlash = 0;
-    });
-  }
-  const available = testState.rangeTargets.filter((t) => !t.hit);
-  if (!available.length) return;
-  const pick = available[Math.floor(Math.random() * available.length)];
-  pick.active = true;
-  testState.activeTargetId = pick.id;
+  spawnNextReactionTarget();
+}
+
+function replaceHumanTarget(now) {
+  const bot = spawnHumanTarget();
+  testState.rangeTargets = [bot];
+  testState.activeTargetId = bot.id;
+  testState.targetSpawnAt = now;
 }
 
 function updateRangeTargets(dt) {
   const now = performance.now();
-  for (const t of testState.rangeTargets) {
-    if (!t.hit && testState.running) {
-      t.movePhase += dt * t.moveSpeed;
-      t.x = t.baseX + Math.sin(t.movePhase) * t.moveRange;
-    }
+  for (let i = 0; i < testState.rangeTargets.length; i += 1) {
+    const t = testState.rangeTargets[i];
+    if (t.type !== "human") continue;
+
     if (t.hitFlash > 0) t.hitFlash = Math.max(0, t.hitFlash - dt * 3.5);
-    if (testState.mode === "practice" && t.hit && t.respawnAt && now >= t.respawnAt) {
-      t.hit = false;
-      t.active = true;
-      t.respawnAt = 0;
-      t.hitFlash = 0;
+
+    if (t.hit && t.respawnAt && now >= t.respawnAt) {
+      if (testState.mode !== "accuracy" || testState.targetsRemaining > 0) {
+        replaceHumanTarget(now);
+      }
+      continue;
+    }
+
+    if (!t.hit && testState.running) {
+      t.x += t.moveVelX * dt;
+      if (t.x <= t.moveMinX) {
+        t.x = t.moveMinX;
+        t.moveVelX = Math.abs(t.moveVelX) * (0.7 + Math.random() * 0.65);
+      }
+      if (t.x >= t.moveMaxX) {
+        t.x = t.moveMaxX;
+        t.moveVelX = -Math.abs(t.moveVelX) * (0.7 + Math.random() * 0.65);
+      }
+      if (Math.random() < dt * 0.12) {
+        t.moveVelX = -t.moveVelX * (0.85 + Math.random() * 0.45);
+      }
     }
   }
 }
 
 function updatePlayerMovement(dt) {
   if (!testState.running || !testState.locked) {
+    testState.velX *= 0.8;
+    testState.velZ *= 0.8;
     testState.bobOffset *= 0.85;
     return;
   }
@@ -690,12 +654,16 @@ function updatePlayerMovement(dt) {
   const len = Math.hypot(mx, mz) || 1;
   mx /= len;
   mz /= len;
-  testState.posX = clamp(testState.posX + mx * PLAYER.speed * dt, PLAYER.boundsX[0], PLAYER.boundsX[1]);
-  testState.posZ = clamp(testState.posZ + mz * PLAYER.speed * dt, PLAYER.boundsZ[0], PLAYER.boundsZ[1]);
+  testState.velX = mx * PLAYER.speed;
+  testState.velZ = mz * PLAYER.speed;
+  testState.posX = clamp(testState.posX + testState.velX * dt, PLAYER.boundsX[0], PLAYER.boundsX[1]);
+  testState.posZ = clamp(testState.posZ + testState.velZ * dt, PLAYER.boundsZ[0], PLAYER.boundsZ[1]);
   if (mx !== 0 || mz !== 0) {
     testState.bobPhase += dt * 11;
     testState.bobOffset = Math.sin(testState.bobPhase) * 4;
   } else {
+    testState.velX = 0;
+    testState.velZ = 0;
     testState.bobOffset *= 0.85;
   }
 }
@@ -743,10 +711,6 @@ function getAimRay(spreadPx, viewW, viewH) {
   return { ox: cam.x, oy: cam.y, oz: cam.z, dx: dir.x, dy: dir.y, dz: dir.z };
 }
 
-function rayHitSphere(ray, target) {
-  return rayHitSphereDetailed(ray, target).hit;
-}
-
 function rayHitSphereDetailed(ray, target) {
   const ocX = ray.ox - target.x;
   const ocY = ray.oy - target.y;
@@ -764,6 +728,30 @@ function rayHitSphereDetailed(ray, target) {
     y: ray.oy + ray.dy * t,
     z: ray.oz + ray.dz * t,
   };
+}
+
+function rayHitHumanDetailed(ray, target) {
+  const headY = target.y + target.bodyH * 0.36;
+  const head = rayHitSphereDetailed(ray, {
+    x: target.x,
+    y: headY,
+    z: target.z,
+    r: target.headR * 1.08,
+  });
+  if (head.hit) return head;
+  const body = rayHitSphereDetailed(ray, { x: target.x, y: target.y, z: target.z, r: target.r });
+  if (body.hit) return body;
+  return rayHitSphereDetailed(ray, {
+    x: target.x,
+    y: target.y - target.bodyH * 0.32,
+    z: target.z,
+    r: target.r * 0.82,
+  });
+}
+
+function rayHitTargetDetailed(ray, target) {
+  if (target.type === "human") return rayHitHumanDetailed(ray, target);
+  return rayHitSphereDetailed(ray, target);
 }
 
 function rayWallHit(ray, wallZ = WALL_Z) {
@@ -796,8 +784,7 @@ function fireBullet() {
   const checkList = getActiveTargets();
 
   for (const t of checkList) {
-    if (t.hit && testState.mode !== "spray" && testState.mode !== "practice") continue;
-    const hitInfo = rayHitSphereDetailed(ray, t);
+    const hitInfo = rayHitTargetDetailed(ray, t);
     if (hitInfo.hit) {
       hit = true;
       impactPoint = { x: hitInfo.x, y: hitInfo.y, z: hitInfo.z };
@@ -983,7 +970,7 @@ function drawFpsScene(ctx, w, h) {
 
   ctx.strokeStyle = "rgba(110, 100, 88, 0.2)";
   ctx.lineWidth = 2;
-  for (const laneX of RANGE_COLS) {
+  for (const laneX of [-360, 0, 360]) {
     const a = worldToScreen(laneX, FLOOR_Y, -120, w, h);
     const b = worldToScreen(laneX, FLOOR_Y, backWallZ, w, h);
     if (!a || !b) continue;
@@ -1007,16 +994,23 @@ function drawFpsScene(ctx, w, h) {
   }
 
   for (const row of RANGE_ROWS) {
-    const banner = worldToScreen(-HALL_HALF + 80, 300, row.z, w, h);
-    if (!banner) continue;
-    ctx.fillStyle = "rgba(249, 158, 26, 0.88)";
-    const bw = 64 * banner.scale;
-    const bh = 16 * banner.scale;
-    ctx.fillRect(banner.sx, banner.sy - bh / 2, bw, bh);
-    ctx.fillStyle = "rgba(255,255,255,0.95)";
-    ctx.font = `600 ${Math.max(9, 11 * banner.scale)}px var(--font, sans-serif)`;
-    ctx.textAlign = "left";
-    ctx.fillText(row.label, banner.sx + 8, banner.sy + 4);
+    const left = worldToScreen(-HALL_HALF + 40, FLOOR_Y + 20, row.z, w, h);
+    const center = worldToScreen(0, FLOOR_Y + 40, row.z, w, h);
+    const right = worldToScreen(HALL_HALF - 120, FLOOR_Y + 20, row.z, w, h);
+    for (const banner of [left, center, right]) {
+      if (!banner) continue;
+      const bw = Math.max(52, 78 * banner.scale);
+      const bh = Math.max(22, 28 * banner.scale);
+      ctx.fillStyle = "rgba(20, 22, 28, 0.72)";
+      ctx.fillRect(banner.sx - bw / 2, banner.sy - bh / 2, bw, bh);
+      ctx.fillStyle = "#f99e1a";
+      ctx.fillRect(banner.sx - bw / 2 + 4, banner.sy - bh / 2 + 4, 5, bh - 8);
+      ctx.fillStyle = "#fff";
+      ctx.font = `700 ${Math.max(12, 16 * banner.scale)}px var(--font, sans-serif)`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(row.label, banner.sx + 6, banner.sy);
+    }
   }
 
   const playerFoot = worldToScreen(testState.posX, FLOOR_Y, testState.posZ + 50, w, h);
@@ -1028,91 +1022,91 @@ function drawFpsScene(ctx, w, h) {
   }
 }
 
-function drawPedestal(ctx, t, w, h) {
-  const platTopY = FLOOR_Y + (t.platformH || 0);
+function drawTargetPad(ctx, t, w, h) {
   const base = worldToScreen(t.x, FLOOR_Y, t.z, w, h);
-  const plat = worldToScreen(t.x, platTopY, t.z, w, h);
-  const top = worldToScreen(t.x, t.y - t.r - 10, t.z, w, h);
-  if (!base || !top) return;
-  const pw = Math.max(12, 32 * base.scale);
-
-  if (t.platformH > 0 && plat) {
-    const padW = Math.max(18, 44 * base.scale);
-    ctx.fillStyle = "rgba(249, 158, 26, 0.88)";
-    ctx.fillRect(plat.sx - padW / 2, plat.sy - 5, padW, 10);
-    ctx.fillStyle = "rgba(60, 55, 50, 0.35)";
-    ctx.fillRect(base.sx - pw / 2, plat.sy, pw, base.sy - plat.sy);
-  } else {
-    ctx.fillStyle = "rgba(249, 158, 26, 0.75)";
-    ctx.fillRect(base.sx - pw * 0.65, base.sy - 5, pw * 1.3, 8);
-  }
-
-  const postTop = plat && t.platformH > 0 ? plat.sy : base.sy - 5;
-  ctx.fillStyle = "rgba(70, 65, 58, 0.45)";
-  ctx.fillRect(base.sx - pw / 2, top.sy, pw, postTop - top.sy);
+  if (!base) return;
+  const padW = Math.max(28, 52 * base.scale);
+  ctx.fillStyle = "#f99e1a";
+  ctx.fillRect(base.sx - padW / 2, base.sy - 6, padW, 10);
+  ctx.fillStyle = "rgba(60, 58, 55, 0.35)";
+  ctx.fillRect(base.sx - padW * 0.15, base.sy - 4, padW * 0.3, 16);
 }
 
-function drawBotDummy(ctx, t, w, h) {
+function drawHumanTarget(ctx, t, w, h) {
   if (t.type === "wall") {
     drawWallTarget(ctx, t, w, h);
     return;
   }
-  if (t.hit && t.hitFlash <= 0 && testState.mode !== "practice") return;
-  if (t.hit && testState.mode === "practice" && t.respawnAt && performance.now() < t.respawnAt) return;
+  if (t.hit && t.hitFlash <= 0 && t.respawnAt && performance.now() >= t.respawnAt) return;
+  if (t.hit && t.respawnAt && performance.now() < t.respawnAt) return;
 
-  const p = worldToScreen(t.x, t.y, t.z, w, h);
-  if (!p || p.sx < -120 || p.sx > w + 120 || p.sy < -120 || p.sy > h + 120) return;
+  const bodyP = worldToScreen(t.x, t.y, t.z, w, h);
+  if (!bodyP || bodyP.sx < -160 || bodyP.sx > w + 160 || bodyP.sy < -160 || bodyP.sy > h + 160) return;
 
-  const isActive =
-    testState.mode === "practice" ||
-    t.active ||
-    (testState.mode === "spray" && t.type === "wall");
-  const laneColor = LANE_COLORS[t.lane] || "#4ebabf";
-  const bodyAlpha = t.hit ? Math.max(0.12, t.hitFlash * 0.45) : t.active ? 0.62 : 0.48;
-  const headR = Math.max(7, 18 * p.scale);
-  const bodyW = Math.max(12, 28 * p.scale);
-  const bodyH = Math.max(22, 52 * p.scale);
-  const headY = p.sy - bodyH * 0.55;
-  const bodyY = p.sy + bodyH * 0.1;
+  const sc = bodyP.scale;
+  const bodyW = Math.max(18, t.bodyW * sc * 2.2);
+  const bodyH = Math.max(36, t.bodyH * sc * 2.2);
+  const headR = Math.max(10, t.headR * sc * 2.1);
+  const shoulderW = bodyW * 1.35;
+  const cx = bodyP.sx;
+  const footY = bodyP.sy + bodyH * 0.42;
+  const bodyTop = footY - bodyH;
+  const headCy = bodyTop - headR * 0.85;
 
-  drawPedestal(ctx, t, w, h);
+  drawTargetPad(ctx, t, w, h);
 
-  if (isActive && (t.active || testState.mode === "practice")) {
-    ctx.save();
-    ctx.shadowColor = laneColor;
-    ctx.shadowBlur = t.active ? 14 : 6;
-  }
+  ctx.save();
+  ctx.globalAlpha = t.hit ? Math.max(0.25, t.hitFlash * 0.7) : 1;
 
-  ctx.globalAlpha = bodyAlpha;
+  ctx.fillStyle = "#dfe3ea";
+  ctx.strokeStyle = "#3a3f48";
+  ctx.lineWidth = Math.max(1.5, 2.2 * sc);
 
-  if (isActive) {
-    ctx.fillStyle = laneColor;
-  } else {
-    ctx.fillStyle = "rgba(130, 125, 118, 0.55)";
-  }
-  ctx.fillRect(p.sx - bodyW / 2, bodyY - bodyH / 2, bodyW, bodyH);
+  ctx.fillRect(cx - bodyW / 2, bodyTop, bodyW, bodyH * 0.72);
+  ctx.strokeRect(cx - bodyW / 2, bodyTop, bodyW, bodyH * 0.72);
+
+  ctx.fillRect(cx - shoulderW / 2, bodyTop + bodyH * 0.08, shoulderW, bodyH * 0.18);
+  ctx.strokeRect(cx - shoulderW / 2, bodyTop + bodyH * 0.08, shoulderW, bodyH * 0.18);
+
+  ctx.fillRect(cx - bodyW * 0.22, footY - bodyH * 0.08, bodyW * 0.18, bodyH * 0.38);
+  ctx.fillRect(cx + bodyW * 0.04, footY - bodyH * 0.08, bodyW * 0.18, bodyH * 0.38);
+
   ctx.beginPath();
-  ctx.arc(p.sx, headY, headR, 0, Math.PI * 2);
+  ctx.arc(cx, headCy, headR, 0, Math.PI * 2);
   ctx.fill();
+  ctx.stroke();
 
-  if (t.active) {
-    ctx.globalAlpha = Math.min(1, bodyAlpha + 0.2);
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
-    ctx.lineWidth = Math.max(2, 3 * p.scale);
-    ctx.beginPath();
-    ctx.arc(p.sx, headY, headR + 6, 0, Math.PI * 2);
-    ctx.stroke();
+  ctx.fillStyle = "#f99e1a";
+  ctx.fillRect(cx - bodyW * 0.28, bodyTop + bodyH * 0.2, bodyW * 0.56, bodyH * 0.16);
+
+  ctx.fillStyle = "#4ebabf";
+  ctx.fillRect(cx - headR * 0.55, headCy - headR * 0.15, headR * 1.1, headR * 0.35);
+
+  const labelP = worldToScreen(t.x, t.y + t.bodyH * 0.75, t.z, w, h);
+  if (labelP) {
+    const lw = Math.max(44, 58 * labelP.scale);
+    const lh = Math.max(18, 24 * labelP.scale);
+    ctx.fillStyle = "rgba(15, 17, 22, 0.82)";
+    ctx.fillRect(labelP.sx - lw / 2, labelP.sy - lh - 8, lw, lh);
+    ctx.fillStyle = "#fff";
+    ctx.font = `700 ${Math.max(11, 14 * labelP.scale)}px var(--font, sans-serif)`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(t.distLabel, labelP.sx, labelP.sy - lh / 2 - 8);
   }
-
-  ctx.globalAlpha = 1;
-  if (isActive && (t.active || testState.mode === "practice")) ctx.restore();
 
   if (t.hit && t.hitFlash > 0) {
-    ctx.fillStyle = `rgba(255, 255, 255, ${t.hitFlash * 0.6})`;
+    ctx.fillStyle = `rgba(255, 255, 255, ${t.hitFlash * 0.55})`;
     ctx.beginPath();
-    ctx.arc(p.sx, p.sy - bodyH * 0.2, headR * 2.2, 0, Math.PI * 2);
+    ctx.arc(cx, headCy, headR * 2.4, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  ctx.restore();
+}
+
+function drawBotDummy(ctx, t, w, h) {
+  drawHumanTarget(ctx, t, w, h);
 }
 
 function drawWallTarget(ctx, t, w, h) {
@@ -1180,6 +1174,32 @@ function drawWeaponView(ctx, w, h) {
   ctx.fillStyle = "rgba(60, 58, 55, 0.6)";
   ctx.fillRect(gx + gunW * 0.15, gy + gunH * 0.55, gunW * 0.65, gunH * 0.35);
   ctx.restore();
+}
+
+function drawTargetDistanceHud(ctx, w, h) {
+  if (!testState.running || !testState.locked || testState.mode === "spray") return;
+  const bot = getCurrentHumanTarget();
+  if (!bot) return;
+
+  ctx.fillStyle = "rgba(12, 14, 18, 0.82)";
+  ctx.fillRect(w / 2 - 78, 10, 156, 52);
+  ctx.fillStyle = "#f99e1a";
+  ctx.fillRect(w / 2 - 78, 10, 6, 52);
+  ctx.fillStyle = "#9aa3b2";
+  ctx.font = "600 11px var(--font, sans-serif)";
+  ctx.textAlign = "center";
+  ctx.fillText("표적 거리", w / 2 + 2, 28);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 28px var(--font, sans-serif)";
+  ctx.fillText(bot.distLabel, w / 2 + 2, 54);
+
+  if (isPlayerMoving()) {
+    ctx.fillStyle = "rgba(220, 60, 60, 0.85)";
+    ctx.fillRect(w / 2 - 64, 68, 128, 24);
+    ctx.fillStyle = "#fff";
+    ctx.font = "600 11px var(--font, sans-serif)";
+    ctx.fillText("이동 중 · 탄 흩어짐 ↑", w / 2, 84);
+  }
 }
 
 function drawMovementHud(ctx, w, h) {
@@ -1279,6 +1299,7 @@ function renderFrame() {
   drawCrosshairOverlay(ctx, w, h);
   drawWeaponView(ctx, w, h);
   drawMovementHud(ctx, w, h);
+  drawTargetDistanceHud(ctx, w, h);
   drawHud(ctx, w, h);
 }
 
@@ -1333,8 +1354,9 @@ function updateStatsUI() {
       testEls.statExtra.textContent = `±${calcSpreadRadius().toFixed(0)}px`;
     } else if (testState.mode === "practice" && testState.running) {
       testEls.statExtraRow.hidden = false;
-      testEls.statExtraLabel.textContent = "훈련 더미";
-      testEls.statExtra.textContent = `${testState.rangeTargets.length}기`;
+      const bot = getCurrentHumanTarget();
+      testEls.statExtraLabel.textContent = "표적 거리";
+      testEls.statExtra.textContent = bot ? bot.distLabel : "—";
     } else {
       testEls.statExtraRow.hidden = true;
     }
@@ -1458,6 +1480,8 @@ function clearTestSession() {
   testState.bobOffset = 0;
   testState.bobPhase = 0;
   clearMovementKeys();
+  testState.velX = 0;
+  testState.velZ = 0;
   testState.hits = 0;
   testState.shots = 0;
   testState.reactionTimes = [];
