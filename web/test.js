@@ -730,27 +730,44 @@ function rayHitSphereDetailed(ray, target) {
   };
 }
 
-function rayHitHumanDetailed(ray, target) {
-  const headY = target.y + target.bodyH * 0.36;
-  const head = rayHitSphereDetailed(ray, {
-    x: target.x,
-    y: headY,
-    z: target.z,
-    r: target.headR * 1.08,
-  });
-  if (head.hit) return head;
-  const body = rayHitSphereDetailed(ray, { x: target.x, y: target.y, z: target.z, r: target.r });
-  if (body.hit) return body;
-  return rayHitSphereDetailed(ray, {
-    x: target.x,
-    y: target.y - target.bodyH * 0.32,
-    z: target.z,
-    r: target.r * 0.82,
-  });
+function humanScreenBounds(target, bodyP) {
+  const s = bodyP.scale;
+  const bodyH = Math.max(36, target.bodyH * s);
+  const bodyW = Math.max(18, target.bodyW * s);
+  const headR = Math.max(10, target.headR * s);
+  const cx = bodyP.sx;
+  const footY = bodyP.sy + bodyH * 0.42;
+  const bodyTop = footY - bodyH;
+  const headCy = bodyTop - headR * 0.85;
+  return { cx, bodyTop, footY, bodyW, bodyH, headR, headCy };
 }
 
-function rayHitTargetDetailed(ray, target) {
-  if (target.type === "human") return rayHitHumanDetailed(ray, target);
+function pointInHumanScreen(sx, sy, b) {
+  if (Math.hypot(sx - b.cx, sy - b.headCy) <= b.headR * 1.25) return true;
+  const halfW = b.bodyW * 0.58;
+  if (sx >= b.cx - halfW && sx <= b.cx + halfW && sy >= b.bodyTop && sy <= b.footY) return true;
+  const shHalf = b.bodyW * 0.72;
+  const shTop = b.bodyTop + b.bodyH * 0.08;
+  const shBot = shTop + b.bodyH * 0.2;
+  return sx >= b.cx - shHalf && sx <= b.cx + shHalf && sy >= shTop && sy <= shBot;
+}
+
+function rayHitHumanDetailed(ray, target, viewW, viewH) {
+  if (Math.abs(ray.dz) < 0.0001) return { hit: false };
+  const t = (target.z - ray.oz) / ray.dz;
+  if (t <= 0) return { hit: false };
+  const wx = ray.ox + ray.dx * t;
+  const wy = ray.oy + ray.dy * t;
+  const hitScreen = worldToScreen(wx, wy, target.z, viewW, viewH);
+  const bodyScreen = worldToScreen(target.x, target.y, target.z, viewW, viewH);
+  if (!hitScreen || !bodyScreen) return { hit: false };
+  const bounds = humanScreenBounds(target, bodyScreen);
+  if (!pointInHumanScreen(hitScreen.sx, hitScreen.sy, bounds)) return { hit: false };
+  return { hit: true, t, x: wx, y: wy, z: target.z };
+}
+
+function rayHitTargetDetailed(ray, target, viewW, viewH) {
+  if (target.type === "human") return rayHitHumanDetailed(ray, target, viewW, viewH);
   return rayHitSphereDetailed(ray, target);
 }
 
@@ -784,7 +801,7 @@ function fireBullet() {
   const checkList = getActiveTargets();
 
   for (const t of checkList) {
-    const hitInfo = rayHitTargetDetailed(ray, t);
+    const hitInfo = rayHitTargetDetailed(ray, t, w, h);
     if (hitInfo.hit) {
       hit = true;
       impactPoint = { x: hitInfo.x, y: hitInfo.y, z: hitInfo.z };
@@ -994,23 +1011,13 @@ function drawFpsScene(ctx, w, h) {
   }
 
   for (const row of RANGE_ROWS) {
-    const left = worldToScreen(-HALL_HALF + 40, FLOOR_Y + 20, row.z, w, h);
-    const center = worldToScreen(0, FLOOR_Y + 40, row.z, w, h);
-    const right = worldToScreen(HALL_HALF - 120, FLOOR_Y + 20, row.z, w, h);
-    for (const banner of [left, center, right]) {
-      if (!banner) continue;
-      const bw = Math.max(52, 78 * banner.scale);
-      const bh = Math.max(22, 28 * banner.scale);
-      ctx.fillStyle = "rgba(20, 22, 28, 0.72)";
-      ctx.fillRect(banner.sx - bw / 2, banner.sy - bh / 2, bw, bh);
-      ctx.fillStyle = "#f99e1a";
-      ctx.fillRect(banner.sx - bw / 2 + 4, banner.sy - bh / 2 + 4, 5, bh - 8);
-      ctx.fillStyle = "#fff";
-      ctx.font = `700 ${Math.max(12, 16 * banner.scale)}px var(--font, sans-serif)`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(row.label, banner.sx + 6, banner.sy);
-    }
+    const label = worldToScreen(-HALL_HALF + 24, FLOOR_Y + 4, row.z, w, h);
+    if (!label) continue;
+    ctx.fillStyle = "rgba(20, 22, 28, 0.55)";
+    ctx.font = `600 ${Math.max(10, 12 * label.scale)}px var(--font, sans-serif)`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(row.label, label.sx, label.sy + 2);
   }
 
   const playerFoot = worldToScreen(testState.posX, FLOOR_Y, testState.posZ + 50, w, h);
@@ -1044,9 +1051,9 @@ function drawHumanTarget(ctx, t, w, h) {
   if (!bodyP || bodyP.sx < -160 || bodyP.sx > w + 160 || bodyP.sy < -160 || bodyP.sy > h + 160) return;
 
   const sc = bodyP.scale;
-  const bodyW = Math.max(18, t.bodyW * sc * 2.2);
-  const bodyH = Math.max(36, t.bodyH * sc * 2.2);
-  const headR = Math.max(10, t.headR * sc * 2.1);
+  const bodyW = Math.max(18, target.bodyW * sc);
+  const bodyH = Math.max(36, target.bodyH * sc);
+  const headR = Math.max(10, target.headR * sc);
   const shoulderW = bodyW * 1.35;
   const cx = bodyP.sx;
   const footY = bodyP.sy + bodyH * 0.42;
@@ -1081,19 +1088,6 @@ function drawHumanTarget(ctx, t, w, h) {
 
   ctx.fillStyle = "#4ebabf";
   ctx.fillRect(cx - headR * 0.55, headCy - headR * 0.15, headR * 1.1, headR * 0.35);
-
-  const labelP = worldToScreen(t.x, t.y + t.bodyH * 0.75, t.z, w, h);
-  if (labelP) {
-    const lw = Math.max(44, 58 * labelP.scale);
-    const lh = Math.max(18, 24 * labelP.scale);
-    ctx.fillStyle = "rgba(15, 17, 22, 0.82)";
-    ctx.fillRect(labelP.sx - lw / 2, labelP.sy - lh - 8, lw, lh);
-    ctx.fillStyle = "#fff";
-    ctx.font = `700 ${Math.max(11, 14 * labelP.scale)}px var(--font, sans-serif)`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(t.distLabel, labelP.sx, labelP.sy - lh / 2 - 8);
-  }
 
   if (t.hit && t.hitFlash > 0) {
     ctx.fillStyle = `rgba(255, 255, 255, ${t.hitFlash * 0.55})`;
@@ -1181,24 +1175,24 @@ function drawTargetDistanceHud(ctx, w, h) {
   const bot = getCurrentHumanTarget();
   if (!bot) return;
 
-  ctx.fillStyle = "rgba(12, 14, 18, 0.82)";
-  ctx.fillRect(w / 2 - 78, 10, 156, 52);
+  ctx.fillStyle = "rgba(12, 14, 18, 0.65)";
+  ctx.fillRect(w - 92, 10, 82, 36);
   ctx.fillStyle = "#f99e1a";
-  ctx.fillRect(w / 2 - 78, 10, 6, 52);
+  ctx.fillRect(w - 92, 10, 3, 36);
   ctx.fillStyle = "#9aa3b2";
-  ctx.font = "600 11px var(--font, sans-serif)";
-  ctx.textAlign = "center";
-  ctx.fillText("표적 거리", w / 2 + 2, 28);
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "700 28px var(--font, sans-serif)";
-  ctx.fillText(bot.distLabel, w / 2 + 2, 54);
+  ctx.font = "500 9px var(--font, sans-serif)";
+  ctx.textAlign = "left";
+  ctx.fillText("거리", w - 82, 22);
+  ctx.fillStyle = "#fff";
+  ctx.font = "700 18px var(--font, sans-serif)";
+  ctx.fillText(bot.distLabel, w - 82, 38);
 
   if (isPlayerMoving()) {
-    ctx.fillStyle = "rgba(220, 60, 60, 0.85)";
-    ctx.fillRect(w / 2 - 64, 68, 128, 24);
+    ctx.fillStyle = "rgba(220, 60, 60, 0.75)";
+    ctx.fillRect(w - 92, 50, 82, 18);
     ctx.fillStyle = "#fff";
-    ctx.font = "600 11px var(--font, sans-serif)";
-    ctx.fillText("이동 중 · 탄 흩어짐 ↑", w / 2, 84);
+    ctx.font = "600 9px var(--font, sans-serif)";
+    ctx.fillText("이동 중 · 분산↑", w - 82, 62);
   }
 }
 
