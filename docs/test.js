@@ -235,6 +235,12 @@ function applyRecoilKick() {
   testState.recoilYaw = clamp(testState.recoilYaw, -maxR * 0.45, maxR * 0.45);
 }
 
+function queueRecoilKick() {
+  requestAnimationFrame(() => {
+    if (testState.running && !testState.finished) applyRecoilKick();
+  });
+}
+
 function updateRecoilRecovery(dt) {
   if (!testState.running || testState.finished) return;
   const cfg = WEAPONS[testState.weapon];
@@ -251,25 +257,84 @@ function resetRecoil() {
   testState.recoilYaw = 0;
 }
 
-function worldToScreen(wx, wy, wz, viewW, viewH) {
+function vec3(x, y, z) {
+  return { x, y, z };
+}
+
+function vecNormalize(v) {
+  const len = Math.hypot(v.x, v.y, v.z) || 1;
+  return vec3(v.x / len, v.y / len, v.z / len);
+}
+
+function vecCross(a, b) {
+  return vec3(
+    a.y * b.z - a.z * b.y,
+    a.z * b.x - a.x * b.z,
+    a.x * b.y - a.y * b.x
+  );
+}
+
+function getProjectionScale(viewH) {
+  return viewH / (2 * Math.tan(getFovRad() / 2));
+}
+
+function getCameraBasis() {
   const aim = getEffectiveAim();
-  const cosY = Math.cos(-aim.yaw);
-  const sinY = Math.sin(-aim.yaw);
-  const cosP = Math.cos(-aim.pitch);
-  const sinP = Math.sin(-aim.pitch);
+  const forward = vecNormalize(
+    vec3(
+      Math.sin(aim.yaw) * Math.cos(aim.pitch),
+      -Math.sin(aim.pitch),
+      -Math.cos(aim.yaw) * Math.cos(aim.pitch)
+    )
+  );
+  const worldUp = vec3(0, 1, 0);
+  let right = vecCross(forward, worldUp);
+  if (Math.hypot(right.x, right.y, right.z) < 0.0001) {
+    right = vec3(1, 0, 0);
+  } else {
+    right = vecNormalize(right);
+  }
+  const up = vecNormalize(vecCross(right, forward));
+  return { forward, right, up };
+}
 
-  const rx = wx * cosY - wz * sinY;
-  const rz = wx * sinY + wz * cosY;
-  const ry2 = wy * cosP - rz * sinP;
-  const rz2 = wy * sinP + rz * cosP;
+/** 화면 픽셀 → 3D 발사 방향 (조준점 = 화면 중앙) */
+function screenToWorldRay(sx, sy, viewW, viewH) {
+  const scale = getProjectionScale(viewH);
+  const nx = (sx - viewW / 2) / scale;
+  const ny = (viewH / 2 - sy) / scale;
+  const { forward, right, up } = getCameraBasis();
+  return vecNormalize(
+    vec3(
+      forward.x + right.x * nx + up.x * ny,
+      forward.y + right.y * nx + up.y * ny,
+      forward.z + right.z * nx + up.z * ny
+    )
+  );
+}
 
-  if (rz2 >= -20) return null;
+function getCrosshairRay(spreadPx, viewW, viewH) {
+  let sx = viewW / 2;
+  let sy = viewH / 2;
+  if (spreadPx > 0) {
+    const a = Math.random() * Math.PI * 2;
+    const d = spreadPx * Math.random();
+    sx += Math.cos(a) * d;
+    sy += Math.sin(a) * d;
+  }
+  return screenToWorldRay(sx, sy, viewW, viewH);
+}
 
-  const depth = -rz2;
-  const scale = viewH / (2 * Math.tan(getFovRad() / 2));
+function worldToScreen(wx, wy, wz, viewW, viewH) {
+  const { forward, right, up } = getCameraBasis();
+  const depth = wx * forward.x + wy * forward.y + wz * forward.z;
+  if (depth <= 20) return null;
+  const rx = wx * right.x + wy * right.y + wz * right.z;
+  const ry = wx * up.x + wy * up.y + wz * up.z;
+  const scale = getProjectionScale(viewH);
   return {
     sx: viewW / 2 + (rx / depth) * scale,
-    sy: viewH / 2 + (ry2 / depth) * scale,
+    sy: viewH / 2 - (ry / depth) * scale,
     scale: scale / depth,
     depth,
   };
@@ -306,25 +371,8 @@ function canFireNow() {
 }
 
 function getAimRay(spreadPx, viewW, viewH) {
-  const aim = getEffectiveAim();
-  const fov = getFovRad();
-  const scale = viewH / (2 * Math.tan(fov / 2));
-  let ox = 0;
-  let oy = 0;
-  if (spreadPx > 0) {
-    const a = Math.random() * Math.PI * 2;
-    const d = spreadPx * Math.random();
-    ox = (d * Math.cos(a)) / scale;
-    oy = (d * Math.sin(a)) / scale;
-  }
-
-  const pitch = aim.pitch + oy;
-  const yaw = aim.yaw + ox;
-  return {
-    dx: Math.sin(yaw) * Math.cos(pitch),
-    dy: -Math.sin(pitch),
-    dz: -Math.cos(yaw) * Math.cos(pitch),
-  };
+  const ray = getCrosshairRay(spreadPx, viewW, viewH);
+  return { dx: ray.x, dy: ray.y, dz: ray.z };
 }
 
 function rayHitSphere(ray, target) {
@@ -401,7 +449,7 @@ function fireBullet() {
     if (testState.impacts.length > 120) testState.impacts.shift();
   }
 
-  applyRecoilKick();
+  queueRecoilKick();
   updateStatsUI();
 }
 
