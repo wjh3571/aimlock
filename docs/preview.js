@@ -213,20 +213,8 @@ function drawLineSet(ctx, p, line, size) {
   }
 }
 
-function crosshairPreviewDataUrl(code, uiType, size) {
-  const w = size || 240;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = w;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return "";
-
-  const bg = ctx.createLinearGradient(0, 0, 0, w);
-  bg.addColorStop(0, "#647086");
-  bg.addColorStop(1, "#33394b");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, w, w);
-
+function drawCrosshair(ctx, code, size) {
+  const w = size;
   const p = parseValorantCode(extractPrimaryCrosshairCode(code));
 
   drawLineSet(ctx, p, p.outer, w);
@@ -243,6 +231,27 @@ function crosshairPreviewDataUrl(code, uiType, size) {
     };
     drawBar(ctx, x, y, dot, dot, p.color, p.dotOpacity, outline);
   }
+}
+
+function crosshairPreviewDataUrl(code, uiType, size) {
+  const w = size || 240;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = w;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+
+  const bg = ctx.createLinearGradient(0, 0, 0, w);
+  bg.addColorStop(0, "#647086");
+  bg.addColorStop(1, "#33394b");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, w);
+
+  drawCrosshair(ctx, code, w);
 
   return canvas.toDataURL("image/png");
 }
+
+window.drawCrosshair = drawCrosshair;
+window.parseValorantCode = parseValorantCode;
+window.extractPrimaryCrosshairCode = extractPrimaryCrosshairCode;

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>aimlock — 조준점 테스트</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="premium.css" />
+  <link rel="stylesheet" href="dynamic.css" />
+  <link rel="stylesheet" href="test.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="app-body test-page">
+  <div class="page page-enter">
+    <header class="top">
+      <div class="header-row">
+        <a href="index.html" class="brand">aimlock</a>
+        <nav class="main-nav" aria-label="메인 메뉴">
+          <a href="index.html" class="nav-btn">메인</a>
+          <a href="search.html" class="nav-btn">조준점 검색</a>
+          <a href="creator.html" class="nav-btn">조준점 제작</a>
+          <a href="test.html" class="nav-btn is-active">조준점 테스트</a>
+        </nav>
+        <div class="auth-area" id="authArea" aria-label="로그인"></div>
+      </div>
+    </header>
+
+    <section class="test-hero page-hero" aria-labelledby="testHeroTitle">
+      <p class="t-kicker">Practice</p>
+      <h1 id="testHeroTitle" class="t-display">조준점 테스트</h1>
+      <p class="t-hero-lead">설정한 조준점으로 반응속도·정확도·연사를 테스트하고 기록을 확인하세요.</p>
+    </section>
+
+    <section id="viewTest" class="test-view" aria-label="조준점 테스트">
+      <div class="test-layout">
+        <aside class="test-panel test-panel-left surface-card">
+          <h2 class="test-panel-title">설정</h2>
+
+          <div class="test-section">
+            <h3 class="test-section-label">총기 선택</h3>
+            <div class="test-options" id="testWeaponGroup"></div>
+          </div>
+
+          <div class="test-section">
+            <h3 class="test-section-label">테스트 모드</h3>
+            <div class="test-options" id="testModeGroup"></div>
+          </div>
+
+          <div class="test-actions">
+            <button type="button" class="test-btn test-btn-primary" id="testStartBtn">시작</button>
+            <button type="button" class="test-btn" id="testRestartBtn">재시작</button>
+          </div>
+
+          <div class="test-section test-crosshair-section">
+            <h3 class="test-section-label">적용 조준점</h3>
+            <div class="test-crosshair-row">
+              <img id="testCrosshairPreview" class="test-crosshair-thumb" alt="" width="80" height="80" />
+              <p class="test-crosshair-hint">검색·제작에서 복사·테스트한 조준점이 자동 적용됩니다.</p>
+            </div>
+            <textarea id="testCrosshairCode" class="test-crosshair-input" rows="3" placeholder="조준점 코드 붙여넣기…"></textarea>
+            <button type="button" class="test-btn test-btn-sm" id="testCrosshairApply">조준점 적용</button>
+          </div>
+        </aside>
+
+        <div class="test-center">
+          <div class="test-range-wrap surface-card" id="testRangeWrap">
+            <canvas id="testCanvas" class="test-canvas" aria-label="사격장"></canvas>
+            <div class="test-result-overlay" id="testResultOverlay" hidden>
+              <div class="test-result-card">
+                <span class="test-result-badge" id="testResultBadge">🏆 최고 기록!</span>
+                <h3 class="test-result-title" id="testResultTitle">테스트 완료</h3>
+                <div class="test-result-body" id="testResultBody"></div>
+                <button type="button" class="test-btn test-btn-primary" id="testResultClose">확인</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="test-panel test-panel-right surface-card">
+          <h2 class="test-panel-title">기록</h2>
+          <dl class="test-stats">
+            <div class="test-stat">
+              <dt>명중 수</dt>
+              <dd id="statHits">0</dd>
+            </div>
+            <div class="test-stat">
+              <dt>발사 수</dt>
+              <dd id="statShots">0</dd>
+            </div>
+            <div class="test-stat">
+              <dt>명중률</dt>
+              <dd id="statAccuracy">0.0%</dd>
+            </div>
+            <div class="test-stat">
+              <dt>평균 반응속도</dt>
+              <dd id="statReaction">—</dd>
+            </div>
+            <div class="test-stat test-stat-highlight">
+              <dt>최고 기록</dt>
+              <dd id="statBest">—</dd>
+            </div>
+            <div class="test-stat" id="statExtraRow" hidden>
+              <dt id="statExtraLabel">—</dt>
+              <dd id="statExtra">—</dd>
+            </div>
+          </dl>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="assertive" hidden></div>
+
+  <script src="baas-config.js"></script>
+  <script src="preview.js"></script>
+  <script src="auth.js?v=supabase-auth-2"></script>
+  <script src="test.js"></script>
+</body>
+</html>

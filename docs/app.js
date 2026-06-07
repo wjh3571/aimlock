@@ -1,4 +1,5 @@
 ﻿const FAVORITES_KEY_PREFIX = "aimlock_favorites_";
+const ACTIVE_CROSSHAIR_KEY = "aimlock_active_crosshair";
 const PAGE_SIZE = 40;
 
 const TYPE_OPTIONS = [
@@ -407,6 +408,10 @@ function applyFilters(resetPage = false) {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         <span>복사</span>
       </button>
+      <button type="button" class="icon-btn card-test-btn" title="테스트">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+        <span>테스트</span>
+      </button>
       <button type="button" class="icon-btn share-btn" title="공유">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 4.02"/></svg>
         <span>공유</span>
@@ -414,6 +419,7 @@ function applyFilters(resetPage = false) {
     `;
 
     actions.querySelector(".copy-btn").addEventListener("click", () => copyCode(item.code));
+    actions.querySelector(".card-test-btn").addEventListener("click", () => goToTestWithCrosshair(item.code));
     actions.querySelector(".share-btn").addEventListener("click", async () => {
       const url = `${location.origin}${location.pathname}#${item.id}`;
       try {
@@ -449,11 +455,34 @@ function showToast(msg) {
 async function copyCode(code) {
   try {
     await navigator.clipboard.writeText(code);
+    setActiveCrosshairCode(code);
     showToast("조준점 코드를 복사했습니다.");
   } catch {
+    setActiveCrosshairCode(code);
     showToast(code);
   }
 }
+
+function setActiveCrosshairCode(code) {
+  try {
+    localStorage.setItem(ACTIVE_CROSSHAIR_KEY, code);
+  } catch {
+    /* ignore */
+  }
+  if (typeof window.setActiveCrosshair === "function") {
+    window.setActiveCrosshair(code);
+  } else {
+    window.dispatchEvent(new CustomEvent("aimlock:crosshair-change", { detail: { code } }));
+  }
+}
+
+function goToTestWithCrosshair(code) {
+  setActiveCrosshairCode(code);
+  window.location.href = "test.html";
+}
+
+window.setActiveCrosshairCode = setActiveCrosshairCode;
+window.goToTestWithCrosshair = goToTestWithCrosshair;
 
 async function loadData() {
   const baas = getBaasConfig();

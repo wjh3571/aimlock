@@ -333,7 +333,14 @@
   }
 
   function updateCodeDisplay() {
-    els.codeOutput.textContent = generateCode();
+    const code = generateCode();
+    els.codeOutput.textContent = code;
+    clearTimeout(updateCodeDisplay.syncTimer);
+    updateCodeDisplay.syncTimer = setTimeout(() => {
+      if (typeof window.setActiveCrosshairCode === "function") {
+        window.setActiveCrosshairCode(code);
+      }
+    }, 120);
   }
 
   /* ================================================
@@ -756,11 +763,17 @@
 
     /* --- Copy --- */
     els.codeCopyBtn.addEventListener("click", async () => {
+      const code = generateCode();
       try {
-        await navigator.clipboard.writeText(generateCode());
+        await navigator.clipboard.writeText(code);
+        if (typeof window.setActiveCrosshairCode === "function") {
+          window.setActiveCrosshairCode(code);
+        } else if (typeof window.setActiveCrosshair === "function") {
+          window.setActiveCrosshair(code);
+        }
         showToast("조준점 코드를 복사했습니다.");
       } catch {
-        showToast(generateCode());
+        showToast(code);
       }
     });
 
