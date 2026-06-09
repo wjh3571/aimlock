@@ -780,16 +780,15 @@ function getHumanSilhouetteLayout(bodyP) {
   const sc = bodyP.scale;
   const totalH = Math.max(56, HUMAN.height * sc);
   const cx = bodyP.sx;
-  const footY = bodyP.sy + totalH * 0.04;
-  const torsoH = totalH * 0.58;
-  const torsoW = totalH * 0.36;
-  const torsoBottom = footY - totalH * 0.03;
+  const footY = bodyP.sy + totalH * 0.02;
+  const torsoH = totalH * 0.62;
+  const torsoW = totalH * 0.4;
+  const torsoBottom = footY;
   const torsoTop = torsoBottom - torsoH;
-  const headRy = totalH * 0.105;
-  const headRx = totalH * 0.088;
-  const headCy = torsoTop - headRy * 0.62;
+  const headRy = totalH * 0.1;
+  const headRx = totalH * 0.082;
+  const headCy = torsoTop - headRy * 0.72;
   const bodyLeft = cx - torsoW / 2;
-  const bodyCy = (torsoTop + torsoBottom) / 2;
   return {
     cx,
     totalH,
@@ -801,9 +800,6 @@ function getHumanSilhouetteLayout(bodyP) {
     torsoW,
     torsoH,
     bodyLeft,
-    bodyCy,
-    scoreRx: torsoW * 0.44,
-    scoreRy: torsoH * 0.5,
   };
 }
 
@@ -1125,53 +1121,6 @@ function roundRectPath(ctx, x, y, rw, rh, rad) {
   ctx.closePath();
 }
 
-function drawTargetStand(ctx, t, w, h, layout, padBase) {
-  if (!padBase) return;
-  ctx.strokeStyle = "#3a3428";
-  ctx.lineWidth = Math.max(2, layout.totalH * 0.012);
-  ctx.beginPath();
-  ctx.moveTo(layout.cx, padBase.sy - 4);
-  ctx.lineTo(layout.cx, layout.torsoBottom + layout.totalH * 0.02);
-  ctx.stroke();
-  const padW = Math.max(28, layout.totalH * 0.22);
-  ctx.fillStyle = "#2a2620";
-  ctx.fillRect(layout.cx - padW / 2, padBase.sy - 6, padW, Math.max(5, layout.totalH * 0.025));
-}
-
-function drawScoringRings(ctx, layout) {
-  const { cx, bodyCy, scoreRx, scoreRy, totalH } = layout;
-  const rings = [
-    { label: "6", scale: 1.0 },
-    { label: "7", scale: 0.82 },
-    { label: "8", scale: 0.64 },
-    { label: "9", scale: 0.46 },
-    { label: "X", scale: 0.28 },
-  ];
-  const lw = Math.max(1, totalH * 0.007);
-  ctx.strokeStyle = "rgba(255,255,255,0.88)";
-  ctx.lineWidth = lw;
-  for (const ring of rings) {
-    ctx.beginPath();
-    ctx.ellipse(cx, bodyCy, scoreRx * ring.scale, scoreRy * ring.scale, 0, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  const fontSize = Math.max(7, totalH * 0.065);
-  ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.font = `700 ${fontSize}px var(--font, sans-serif)`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("X", cx, bodyCy);
-  for (const ring of rings.slice(0, 4)) {
-    const rx = scoreRx * ring.scale;
-    const ry = scoreRy * ring.scale;
-    ctx.font = `600 ${Math.max(6, fontSize * 0.72)}px var(--font, sans-serif)`;
-    ctx.fillText(ring.label, cx, bodyCy - ry * 0.55);
-    ctx.fillText(ring.label, cx, bodyCy + ry * 0.55);
-    ctx.fillText(ring.label, cx - rx * 0.55, bodyCy);
-    ctx.fillText(ring.label, cx + rx * 0.55, bodyCy);
-  }
-}
-
 function drawHumanTarget(ctx, t, w, h) {
   if (t.type === "wall") {
     drawWallTarget(ctx, t, w, h);
@@ -1185,36 +1134,31 @@ function drawHumanTarget(ctx, t, w, h) {
 
   const layout = getHumanSilhouetteLayout(bodyP);
   const { cx, headRx, headRy, headCy, bodyLeft, torsoTop, torsoW, torsoH } = layout;
-  const padBase = worldToScreen(t.x, FLOOR_Y, t.z, w, h);
-
-  drawTargetStand(ctx, t, w, h, layout, padBase);
 
   ctx.save();
-  ctx.globalAlpha = t.hit ? Math.max(0.3, t.hitFlash * 0.75) : 1;
+  ctx.globalAlpha = t.hit ? Math.max(0.35, t.hitFlash * 0.8) : 1;
 
-  ctx.fillStyle = "#567a30";
+  ctx.fillStyle = "#5a7c32";
   ctx.beginPath();
   ctx.ellipse(cx, headCy, headRx, headRy, 0, 0, Math.PI * 2);
   ctx.fill();
-  roundRectPath(ctx, bodyLeft, torsoTop, torsoW, torsoH, torsoW * 0.14);
+  roundRectPath(ctx, bodyLeft, torsoTop, torsoW, torsoH, torsoW * 0.1);
   ctx.fill();
 
-  ctx.strokeStyle = "rgba(35, 50, 20, 0.55)";
-  ctx.lineWidth = Math.max(1, layout.totalH * 0.008);
+  ctx.strokeStyle = "rgba(40, 58, 22, 0.45)";
+  ctx.lineWidth = Math.max(1, layout.totalH * 0.006);
   ctx.beginPath();
   ctx.ellipse(cx, headCy, headRx, headRy, 0, 0, Math.PI * 2);
   ctx.stroke();
-  roundRectPath(ctx, bodyLeft, torsoTop, torsoW, torsoH, torsoW * 0.14);
+  roundRectPath(ctx, bodyLeft, torsoTop, torsoW, torsoH, torsoW * 0.1);
   ctx.stroke();
-
-  drawScoringRings(ctx, layout);
 
   if (t.hit && t.hitFlash > 0) {
-    ctx.fillStyle = `rgba(255, 255, 255, ${t.hitFlash * 0.45})`;
+    ctx.fillStyle = `rgba(255, 255, 255, ${t.hitFlash * 0.4})`;
     ctx.beginPath();
-    ctx.ellipse(cx, headCy, headRx * 1.6, headRy * 1.6, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, headCy, headRx * 1.5, headRy * 1.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    roundRectPath(ctx, bodyLeft - 4, torsoTop - 4, torsoW + 8, torsoH + 8, torsoW * 0.14);
+    roundRectPath(ctx, bodyLeft - 3, torsoTop - 3, torsoW + 6, torsoH + 6, torsoW * 0.1);
     ctx.fill();
   }
 
