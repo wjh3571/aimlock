@@ -54,7 +54,11 @@ const RANGE_ROWS = [
   { z: -2850, label: "40m", scale: 0.52, moveSpan: 420 },
 ];
 
-const TARGET_SPEED_MIN = 55;
+/** 훈련장 표적 — aimlock 테마 색 (실루엣 형태만, 사진 색상 X) */
+const TARGET_STYLE = {
+  fill: "#2e3648",
+  stroke: "#4ebabf",
+};
 const TARGET_SPEED_MAX = 270;
 
 function pickTargetSpeed() {
@@ -1138,15 +1142,15 @@ function drawHumanTarget(ctx, t, w, h) {
   ctx.save();
   ctx.globalAlpha = t.hit ? Math.max(0.35, t.hitFlash * 0.8) : 1;
 
-  ctx.fillStyle = "#5a7c32";
+  ctx.fillStyle = TARGET_STYLE.fill;
   ctx.beginPath();
   ctx.ellipse(cx, headCy, headRx, headRy, 0, 0, Math.PI * 2);
   ctx.fill();
   roundRectPath(ctx, bodyLeft, torsoTop, torsoW, torsoH, torsoW * 0.1);
   ctx.fill();
 
-  ctx.strokeStyle = "rgba(40, 58, 22, 0.45)";
-  ctx.lineWidth = Math.max(1, layout.totalH * 0.006);
+  ctx.strokeStyle = TARGET_STYLE.stroke;
+  ctx.lineWidth = Math.max(1.5, layout.totalH * 0.008);
   ctx.beginPath();
   ctx.ellipse(cx, headCy, headRx, headRy, 0, 0, Math.PI * 2);
   ctx.stroke();
@@ -1154,7 +1158,7 @@ function drawHumanTarget(ctx, t, w, h) {
   ctx.stroke();
 
   if (t.hit && t.hitFlash > 0) {
-    ctx.fillStyle = `rgba(255, 255, 255, ${t.hitFlash * 0.4})`;
+    ctx.fillStyle = `rgba(249, 158, 26, ${t.hitFlash * 0.55})`;
     ctx.beginPath();
     ctx.ellipse(cx, headCy, headRx * 1.5, headRy * 1.5, 0, 0, Math.PI * 2);
     ctx.fill();
