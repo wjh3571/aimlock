@@ -92,6 +92,13 @@
   text-align: right;
 }
 
+.test-sens-hint {
+  margin: 6px 0 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .test-controls-hint {
   margin: 6px 0 0;
   font-size: 0.7rem;
