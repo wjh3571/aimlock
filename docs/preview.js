@@ -8,6 +8,18 @@ function extractPrimaryCrosshairCode(full) {
   return rest.slice(0, end);
 }
 
+function extractSniperCrosshairCode(full) {
+  const s = String(full || "");
+  const idx = s.indexOf(";S;");
+  if (idx < 0) return extractPrimaryCrosshairCode(full);
+  return s.slice(idx + 3);
+}
+
+function crosshairCodeForWeapon(full, weapon, zoomed) {
+  if (weapon === "operator" && zoomed) return extractSniperCrosshairCode(full);
+  return extractPrimaryCrosshairCode(full);
+}
+
 function valorantColorFromIndex(idx) {
   const palette = [
     "#ffffff",
@@ -213,9 +225,13 @@ function drawLineSet(ctx, p, line, size) {
   }
 }
 
-function drawCrosshair(ctx, code, size) {
+function drawCrosshair(ctx, code, size, weapon, zoomed) {
   const w = size;
-  const p = parseValorantCode(extractPrimaryCrosshairCode(code));
+  const section =
+    weapon === "operator" && zoomed
+      ? extractSniperCrosshairCode(code)
+      : extractPrimaryCrosshairCode(code);
+  const p = parseValorantCode(section);
 
   drawLineSet(ctx, p, p.outer, w);
   drawLineSet(ctx, p, p.inner, w);
@@ -255,3 +271,5 @@ function crosshairPreviewDataUrl(code, uiType, size) {
 window.drawCrosshair = drawCrosshair;
 window.parseValorantCode = parseValorantCode;
 window.extractPrimaryCrosshairCode = extractPrimaryCrosshairCode;
+window.extractSniperCrosshairCode = extractSniperCrosshairCode;
+window.crosshairCodeForWeapon = crosshairCodeForWeapon;

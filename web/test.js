@@ -54,10 +54,11 @@ const RANGE_ROWS = [
   { z: -2850, label: "40m", scale: 0.52, moveSpan: 420 },
 ];
 
-/** 훈련장 표적 — aimlock 테마 색 (실루엣 형태만, 사진 색상 X) */
+/** 훈련장 표적 — aimlock 테마 (밝은 바닥에서도 잘 보이게) */
 const TARGET_STYLE = {
-  fill: "#2e3648",
+  fill: "#3a4660",
   stroke: "#4ebabf",
+  strokeGlow: "rgba(78, 186, 191, 0.35)",
 };
 const TARGET_SPEED_MIN = 55;
 const TARGET_SPEED_MAX = 270;
@@ -209,10 +210,6 @@ const MODES = {
     label: "정확도 테스트",
     desc: "50개의 더미를 모두 제거하세요.",
   },
-  spray: {
-    label: "연사 테스트",
-    desc: "원거리 벽 표적에 연사하여 탄착군을 확인하세요.",
-  },
 };
 
 const testState = {
@@ -257,7 +254,6 @@ const testState = {
   timerId: null,
   targets: [],
   impacts: [],
-  centerTarget: null,
 };
 
 const testEls = {};
@@ -598,25 +594,7 @@ function getCurrentHumanTarget() {
 
 function initRangeSession() {
   testState.targets = [];
-  testState.centerTarget = null;
   testState.activeTargetId = null;
-
-  if (testState.mode === "spray") {
-    testState.rangeTargets = [];
-    testState.centerTarget = {
-      id: "spray-wall",
-      x: 0,
-      y: 60,
-      z: WALL_Z + 50,
-      r: 70,
-      scale: 0.55,
-      hit: false,
-      active: true,
-      type: "wall",
-    };
-    testState.impacts = [];
-    return;
-  }
 
   const bot = spawnHumanTarget();
   testState.rangeTargets = [bot];
@@ -625,7 +603,6 @@ function initRangeSession() {
 }
 
 function getActiveTargets() {
-  if (testState.mode === "spray" && testState.centerTarget) return [testState.centerTarget];
   return testState.rangeTargets.filter((t) => t.active && !t.hit);
 }
 
@@ -677,6 +654,8 @@ function updateRangeTargets(dt) {
     }
 
     if (!t.hit && testState.running) {
+      if (!Number.isFinite(t.moveVelX)) t.moveVelX = pickTargetSpeed() * (Math.random() < 0.5 ? -1 : 1);
+      if (!Number.isFinite(t.x)) t.x = 0;
       t.x += t.moveVelX * dt;
       if (t.x <= t.moveMinX) {
         t.x = t.moveMinX;
@@ -724,13 +703,6 @@ function clearMovementKeys() {
   testState.keys.right = false;
   testState.keys.forward = false;
   testState.keys.back = false;
-}
-
-function spawnWallTarget(centered = false) {
-  const x = centered ? 0 : (Math.random() - 0.5) * 900;
-  const y = centered ? 40 : (Math.random() - 0.5) * 420 + 30;
-  const z = centered ? -1100 : -900 - Math.random() * 350;
-  return { x, y, z, r: centered ? 70 : 55, hit: false, id: Math.random() };
 }
 
 function resetWeaponSpray() {
@@ -881,11 +853,7 @@ function fireBullet() {
       testState.hits += 1;
       if (hitZone === "head") testState.headHits += 1;
       else if (hitZone === "body") testState.bodyHits += 1;
-      if (testState.mode === "spray") {
-        /* wall target stays */
-      } else {
-        onTargetHit(t, now);
-      }
+      onTargetHit(t, now);
       break;
     }
   }
@@ -1127,10 +1095,6 @@ function roundRectPath(ctx, x, y, rw, rh, rad) {
 }
 
 function drawHumanTarget(ctx, t, w, h) {
-  if (t.type === "wall") {
-    drawWallTarget(ctx, t, w, h);
-    return;
-  }
   if (t.hit && t.hitFlash <= 0 && t.respawnAt && performance.now() >= t.respawnAt) return;
   if (t.hit && t.respawnAt && performance.now() < t.respawnAt) return;
 
@@ -1149,6 +1113,14 @@ function drawHumanTarget(ctx, t, w, h) {
   ctx.fill();
   roundRectPath(ctx, bodyLeft, torsoTop, torsoW, torsoH, torsoW * 0.1);
   ctx.fill();
+
+  ctx.strokeStyle = TARGET_STYLE.strokeGlow;
+  ctx.lineWidth = Math.max(3, layout.totalH * 0.014);
+  ctx.beginPath();
+  ctx.ellipse(cx, headCy, headRx, headRy, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  roundRectPath(ctx, bodyLeft, torsoTop, torsoW, torsoH, torsoW * 0.1);
+  ctx.stroke();
 
   ctx.strokeStyle = TARGET_STYLE.stroke;
   ctx.lineWidth = Math.max(1.5, layout.totalH * 0.008);
@@ -1172,25 +1144,6 @@ function drawHumanTarget(ctx, t, w, h) {
 
 function drawBotDummy(ctx, t, w, h) {
   drawHumanTarget(ctx, t, w, h);
-}
-
-function drawWallTarget(ctx, t, w, h) {
-  const p = worldToScreen(t.x, t.y, t.z, w, h);
-  if (!p) return;
-  const r = Math.max(12, t.r * p.scale);
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(249, 158, 26, 0.22)";
-  ctx.fill();
-  ctx.strokeStyle = "#f99e1a";
-  ctx.lineWidth = Math.max(2, 3 * p.scale);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(p.sx, p.sy, r * 0.35, 0, Math.PI * 2);
-  ctx.fillStyle = "#f99e1a";
-  ctx.fill();
-  ctx.restore();
 }
 
 function drawTarget3D(ctx, t, w, h) {
@@ -1244,7 +1197,7 @@ function drawCrosshairOverlay(ctx, w, h) {
   try {
     if (typeof drawCrosshair === "function") {
       ctx.translate(cx - chSize / 2, cy - chSize / 2);
-      drawCrosshair(ctx, code, chSize);
+      drawCrosshair(ctx, code, chSize, testState.weapon, testState.zoomed);
     }
   } catch {
     /* fallback already drawn */
@@ -1273,7 +1226,7 @@ function drawWeaponView(ctx, w, h) {
 }
 
 function drawTargetDistanceHud(ctx, w, h) {
-  if (!testState.running || !testState.locked || testState.mode === "spray") return;
+  if (!testState.running || !testState.locked) return;
   const bot = getCurrentHumanTarget();
   if (!bot) return;
 
@@ -1387,12 +1340,7 @@ function renderFrame() {
   ctx.translate(testState.shakeX, testState.shakeY);
   drawFpsScene(ctx, w, h);
 
-  const drawList = [];
-  if (testState.mode === "spray" && testState.centerTarget) {
-    drawList.push(testState.centerTarget);
-  } else {
-    for (const t of testState.rangeTargets) drawList.push(t);
-  }
+  const drawList = [...testState.rangeTargets];
   drawList.sort((a, b) => b.z - a.z);
   for (const t of drawList) {
     try {
@@ -1463,8 +1411,6 @@ function updateStatsUI() {
       testEls.statBest.textContent = `${formatPct(best.accuracy)} · ${formatMs(best.timeMs)}`;
     } else if (testState.mode === "practice") {
       testEls.statBest.textContent = `${best.hits}명중 · ${formatPct(best.accuracy)}`;
-    } else {
-      testEls.statBest.textContent = `${formatPct(best.accuracy)} · ${best.spreadPx}px`;
     }
   }
 
@@ -1477,10 +1423,6 @@ function updateStatsUI() {
       testEls.statExtraRow.hidden = false;
       testEls.statExtraLabel.textContent = "남은 시간";
       testEls.statExtra.textContent = `${Math.ceil(testState.timeLeft)}s`;
-    } else if (testState.mode === "spray" && testState.impacts.length) {
-      testEls.statExtraRow.hidden = false;
-      testEls.statExtraLabel.textContent = "탄착군 분포";
-      testEls.statExtra.textContent = `±${calcSpreadRadius().toFixed(0)}px`;
     } else if (testState.mode === "practice" && testState.running) {
       testEls.statExtraRow.hidden = false;
       const bot = getCurrentHumanTarget();
@@ -1490,16 +1432,6 @@ function updateStatsUI() {
       testEls.statExtraRow.hidden = true;
     }
   }
-}
-
-function calcSpreadRadius() {
-  const { w, h } = getViewSize();
-  let maxD = 0;
-  for (const imp of testState.impacts) {
-    const p = worldToScreen(imp.x, imp.y, imp.z, w, h);
-    if (p) maxD = Math.max(maxD, Math.hypot(p.sx - w / 2, p.sy - h / 2));
-  }
-  return maxD;
 }
 
 function evaluateBestRecord() {
@@ -1525,15 +1457,6 @@ function evaluateBestRecord() {
       (acc === prev.accuracy && testState.elapsedMs < prev.timeMs);
   } else if (testState.mode === "practice") {
     return { isNewBest: false };
-  } else {
-    if (testState.shots <= 0) return { isNewBest: false };
-    const acc = accuracyPct();
-    const spread = calcSpreadRadius();
-    record = { accuracy: acc, spreadPx: spread, shots: testState.shots, at: Date.now() };
-    isNewBest =
-      !prev ||
-      acc > prev.accuracy ||
-      (acc === prev.accuracy && spread < prev.spreadPx);
   }
 
   if (isNewBest && record) saveBestRecord(testState.mode, testState.weapon, record);
@@ -1576,9 +1499,6 @@ function showResultOverlay() {
       `명중률: ${formatPct(accuracyPct())}`,
       `헤드샷 비율: ${testState.hits ? formatPct((testState.headHits / testState.hits) * 100) : "—"}`
     );
-  } else {
-    title = "연사 테스트 결과";
-    lines.push(`명중률: ${formatPct(accuracyPct())}`, `탄착군 분포: ±${calcSpreadRadius().toFixed(0)}px`, `발사: ${testState.shots}발`, `명중: ${testState.hits}발`);
   }
 
   testEls.resultTitle.textContent = title;
@@ -1638,7 +1558,6 @@ function clearTestSession() {
   testState.targets = [];
   testState.rangeTargets = [];
   testState.impacts = [];
-  testState.centerTarget = null;
   testState.activeTargetId = null;
   testState.elapsedMs = 0;
   testState.timeLeft = 30;

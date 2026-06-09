@@ -217,6 +217,12 @@
       <!-- ===== Preview Panel ===== -->
       <div class="cr-preview-panel">
 
+        <div class="cr-mode-switch" role="tablist" aria-label="조준선 편집 모드">
+          <button type="button" class="cr-mode-btn is-active" id="modePrimary" role="tab" aria-selected="true">일반 (AR · 권총)</button>
+          <button type="button" class="cr-mode-btn" id="modeSniper" role="tab" aria-selected="false">저격 (Operator)</button>
+        </div>
+        <p class="cr-mode-hint" id="modeHint">일반 무기 조준선을 편집 중입니다. 코드에는 <code>;S;</code> 뒤에 저격 조준선이 함께 저장됩니다.</p>
+
         <div class="cr-preview-wrap">
           <div class="cr-preview-area" id="previewArea">
             <div class="cr-ch" id="chContainer"></div>

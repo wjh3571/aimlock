@@ -96,11 +96,23 @@
     movementError: 0, firingError: 0,
   };
 
+  const DEFAULT_SNIPER_STATE = {
+    color: "#ffff00",
+    outlineOn: true, outlineOpacity: 1, outlineThickness: 1,
+    centerDot: { on: true, size: 2, opacity: 1 },
+    innerLines: { on: false, length: 6, thickness: 2, offset: 3, opacity: 1 },
+    outerLines: { on: false, length: 2, thickness: 2, offset: 10, opacity: 1 },
+    movementError: 0, firingError: 0,
+  };
+
   /* ================================================
      State
      ================================================ */
 
-  let state = deepClone(DEFAULT_STATE);
+  let editMode = "primary";
+  let primaryState = deepClone(DEFAULT_STATE);
+  let sniperState = deepClone(DEFAULT_SNIPER_STATE);
+  let state = primaryState;
   let simMovement = false;
   let simFiring = false;
 
@@ -163,6 +175,9 @@
     userPresets:        $("userPresets"),
     userPresetsEmpty:   $("userPresetsEmpty"),
     toast:              $("toast"),
+    modePrimary:        $("modePrimary"),
+    modeSniper:         $("modeSniper"),
+    modeHint:           $("modeHint"),
   };
 
   /* ================================================
@@ -301,35 +316,41 @@
     return ["u", r + g + b + "FF"];
   }
 
-  function generateCode() {
+  function stateToCodeParts(s, withPrefix) {
     const p = [];
-    p.push("0", "P");
-    p.push(...colorToCodeParts(state.color));
-    p.push("h", state.outlineOn ? "1" : "0");
-    if (state.outlineOn) {
-      p.push("o", String(state.outlineOpacity));
-      p.push("t", String(state.outlineThickness));
+    if (withPrefix) p.push("0", "P");
+    p.push(...colorToCodeParts(s.color));
+    p.push("h", s.outlineOn ? "1" : "0");
+    if (s.outlineOn) {
+      p.push("o", String(s.outlineOpacity));
+      p.push("t", String(s.outlineThickness));
     }
-    p.push("d", state.centerDot.on ? "1" : "0");
-    if (state.centerDot.on) {
-      p.push("z", String(state.centerDot.size));
-      p.push("a", String(state.centerDot.opacity));
+    p.push("d", s.centerDot.on ? "1" : "0");
+    if (s.centerDot.on) {
+      p.push("z", String(s.centerDot.size));
+      p.push("a", String(s.centerDot.opacity));
     }
-    p.push("0b", state.innerLines.on ? "1" : "0");
-    if (state.innerLines.on) {
-      p.push("0l", String(state.innerLines.length));
-      p.push("0t", String(state.innerLines.thickness));
-      p.push("0o", String(state.innerLines.offset));
-      p.push("0a", String(state.innerLines.opacity));
+    p.push("0b", s.innerLines.on ? "1" : "0");
+    if (s.innerLines.on) {
+      p.push("0l", String(s.innerLines.length));
+      p.push("0t", String(s.innerLines.thickness));
+      p.push("0o", String(s.innerLines.offset));
+      p.push("0a", String(s.innerLines.opacity));
     }
-    p.push("1b", state.outerLines.on ? "1" : "0");
-    if (state.outerLines.on) {
-      p.push("1l", String(state.outerLines.length));
-      p.push("1t", String(state.outerLines.thickness));
-      p.push("1o", String(state.outerLines.offset));
-      p.push("1a", String(state.outerLines.opacity));
+    p.push("1b", s.outerLines.on ? "1" : "0");
+    if (s.outerLines.on) {
+      p.push("1l", String(s.outerLines.length));
+      p.push("1t", String(s.outerLines.thickness));
+      p.push("1o", String(s.outerLines.offset));
+      p.push("1a", String(s.outerLines.opacity));
     }
-    return p.join(";");
+    return p;
+  }
+
+  function generateCode() {
+    const primary = stateToCodeParts(primaryState, true).join(";");
+    const sniper = stateToCodeParts(sniperState, false).join(";");
+    return `${primary};S;${sniper}`;
   }
 
   function updateCodeDisplay() {
@@ -351,9 +372,33 @@
     return VALORANT_COLORS[idx] ? VALORANT_COLORS[idx].hex : "#ffffff";
   }
 
-  function parseValorantCode(code) {
+  function parseFullCrosshairCode(code) {
+    const raw = String(code || "");
+    const sIdx = raw.indexOf(";S;");
+    const primaryPart = sIdx >= 0 ? raw.slice(0, sIdx) : raw;
+    const sniperPart = sIdx >= 0 ? raw.slice(sIdx + 3) : "";
+    return {
+      primary: parseValorantCode(primaryPart, DEFAULT_STATE),
+      sniper: sniperPart ? parseValorantCode(sniperPart, DEFAULT_SNIPER_STATE) : deepClone(DEFAULT_SNIPER_STATE),
+    };
+  }
+
+  function syncModeUI() {
+    const isPrimary = editMode === "primary";
+    els.modePrimary?.classList.toggle("is-active", isPrimary);
+    els.modeSniper?.classList.toggle("is-active", !isPrimary);
+    els.modePrimary?.setAttribute("aria-selected", isPrimary ? "true" : "false");
+    els.modeSniper?.setAttribute("aria-selected", !isPrimary ? "true" : "false");
+    if (els.modeHint) {
+      els.modeHint.textContent = isPrimary
+        ? "일반 무기(AR·SMG·권총) 조준선을 편집 중입니다."
+        : "Operator ADS(저격) 조준선을 편집 중입니다. 코드에는 ;S; 뒤에 저장됩니다.";
+    }
+  }
+
+  function parseValorantCode(code, base) {
     const parts = String(code || "").split(";");
-    const r = deepClone(DEFAULT_STATE);
+    const r = deepClone(base || DEFAULT_STATE);
 
     for (let i = 0; i < parts.length - 1; i++) {
       const k = parts[i];
@@ -386,6 +431,14 @@
     return r;
   }
 
+  function switchEditMode(mode) {
+    if (mode === editMode) return;
+    editMode = mode;
+    state = editMode === "sniper" ? sniperState : primaryState;
+    syncModeUI();
+    syncUIFromState();
+  }
+
   function clamp(n, min, max, fallback) {
     if (!Number.isFinite(n)) return fallback;
     return Math.min(max, Math.max(min, n));
@@ -401,6 +454,7 @@
      ================================================ */
 
   function syncUIFromState() {
+    syncModeUI();
     els.colorPicker.value = state.color;
     syncSwatchHighlight();
 
@@ -604,6 +658,8 @@
     card.addEventListener("click", (e) => {
       if (e.target.closest(".cr-preset-del")) return;
       state = deepClone(preset.state);
+      if (editMode === "primary") primaryState = state;
+      else sniperState = state;
       syncUIFromState();
       showToast(`"${preset.name}" 프리셋을 적용했습니다.`);
     });
@@ -779,13 +835,19 @@
 
     /* --- Actions --- */
     els.resetBtn.addEventListener("click", () => {
-      state = deepClone(DEFAULT_STATE);
+      if (editMode === "primary") {
+        primaryState = deepClone(DEFAULT_STATE);
+        state = primaryState;
+      } else {
+        sniperState = deepClone(DEFAULT_SNIPER_STATE);
+        state = sniperState;
+      }
       simMovement = false;
       simFiring = false;
       els.simMovementBtn.setAttribute("aria-pressed", "false");
       els.simFiringBtn.setAttribute("aria-pressed", "false");
       syncUIFromState();
-      showToast("초기화되었습니다.");
+      showToast(editMode === "primary" ? "일반 조준선을 초기화했습니다." : "저격 조준선을 초기화했습니다.");
     });
 
     els.randomBtn.addEventListener("click", () => {
@@ -803,6 +865,9 @@
       renderUserPresets();
       showToast(`"${name.trim()}" 프리셋을 저장했습니다.`);
     });
+
+    els.modePrimary?.addEventListener("click", () => switchEditMode("primary"));
+    els.modeSniper?.addEventListener("click", () => switchEditMode("sniper"));
 
     /* --- Section collapse --- */
     document.querySelectorAll(".cr-section-header").forEach((header) => {
@@ -825,7 +890,10 @@
       showToast("코드를 입력해 주세요.");
       return;
     }
-    state = parseValorantCode(raw);
+    const parsed = parseFullCrosshairCode(raw);
+    primaryState = parsed.primary;
+    sniperState = parsed.sniper;
+    state = editMode === "sniper" ? sniperState : primaryState;
     syncUIFromState();
     showToast("코드를 불러왔습니다.");
   }
