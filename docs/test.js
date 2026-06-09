@@ -54,10 +54,11 @@ const RANGE_ROWS = [
   { z: -2850, label: "40m", scale: 0.52, moveSpan: 420 },
 ];
 
-/** 훈련장 표적 — aimlock 테마 색 (실루엣 형태만, 사진 색상 X) */
+/** 훈련장 표적 — aimlock 테마 (밝은 바닥에서도 잘 보이게) */
 const TARGET_STYLE = {
-  fill: "#2e3648",
+  fill: "#3a4660",
   stroke: "#4ebabf",
+  strokeGlow: "rgba(78, 186, 191, 0.35)",
 };
 const TARGET_SPEED_MIN = 55;
 const TARGET_SPEED_MAX = 270;
@@ -677,6 +678,8 @@ function updateRangeTargets(dt) {
     }
 
     if (!t.hit && testState.running) {
+      if (!Number.isFinite(t.moveVelX)) t.moveVelX = pickTargetSpeed() * (Math.random() < 0.5 ? -1 : 1);
+      if (!Number.isFinite(t.x)) t.x = 0;
       t.x += t.moveVelX * dt;
       if (t.x <= t.moveMinX) {
         t.x = t.moveMinX;
@@ -1149,6 +1152,14 @@ function drawHumanTarget(ctx, t, w, h) {
   ctx.fill();
   roundRectPath(ctx, bodyLeft, torsoTop, torsoW, torsoH, torsoW * 0.1);
   ctx.fill();
+
+  ctx.strokeStyle = TARGET_STYLE.strokeGlow;
+  ctx.lineWidth = Math.max(3, layout.totalH * 0.014);
+  ctx.beginPath();
+  ctx.ellipse(cx, headCy, headRx, headRy, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  roundRectPath(ctx, bodyLeft, torsoTop, torsoW, torsoH, torsoW * 0.1);
+  ctx.stroke();
 
   ctx.strokeStyle = TARGET_STYLE.stroke;
   ctx.lineWidth = Math.max(1.5, layout.totalH * 0.008);
