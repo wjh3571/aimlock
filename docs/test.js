@@ -13,9 +13,9 @@ const ACTIVE_CROSSHAIR_KEY = "aimlock_active_crosshair";
 const SENSITIVITY_KEY = "aimlock_test_sensitivity";
 const BEST_RECORD_PREFIX = "aimlock_test_best_";
 const MOUSE_SENS_BASE = 0.0022;
-const SENS_MIN = 25;
-const SENS_MAX = 300;
-const SENS_DEFAULT = 100;
+const SENS_MIN = 0.01;
+const SENS_MAX = 10;
+const SENS_DEFAULT = 1;
 const DEFAULT_CROSSHAIR =
   "0;P;c;5;o;1;d;1;0b;0;1b;0;S;c;5;o;1;d;1;0b;0;1b;0;";
 
@@ -331,11 +331,19 @@ function saveActiveCrosshair(code) {
 function loadSensitivity() {
   try {
     const saved = Number(localStorage.getItem(SENSITIVITY_KEY));
-    if (Number.isFinite(saved)) return clamp(saved, SENS_MIN, SENS_MAX);
+    if (Number.isFinite(saved)) {
+      // 이전 % 저장값(25–300) → 발로란트 sens로 변환
+      if (saved > SENS_MAX) return clampSens(saved / 100);
+      return clampSens(saved);
+    }
   } catch {
     /* ignore */
   }
   return SENS_DEFAULT;
+}
+
+function clampSens(value) {
+  return Math.round(clamp(value, SENS_MIN, SENS_MAX) * 100) / 100;
 }
 
 function saveSensitivity(value) {
@@ -347,17 +355,17 @@ function saveSensitivity(value) {
 }
 
 function getMouseSensitivity() {
-  return MOUSE_SENS_BASE * (testState.sensitivity / SENS_DEFAULT);
+  return MOUSE_SENS_BASE * testState.sensitivity;
 }
 
 function syncSensitivityUI() {
   const val = testState.sensitivity;
   if (testEls.sensSlider) testEls.sensSlider.value = String(val);
-  if (testEls.sensValue) testEls.sensValue.textContent = `${val}%`;
+  if (testEls.sensValue) testEls.sensValue.textContent = val.toFixed(2);
 }
 
 function setSensitivity(value, { persist = true } = {}) {
-  testState.sensitivity = clamp(Math.round(value), SENS_MIN, SENS_MAX);
+  testState.sensitivity = clampSens(value);
   syncSensitivityUI();
   if (persist) saveSensitivity(testState.sensitivity);
 }

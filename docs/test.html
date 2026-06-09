@@ -49,9 +49,10 @@
               <div class="test-settings-block test-settings-block-sens">
                 <h3 class="test-section-label">감도</h3>
                 <div class="test-sens-row">
-                  <input type="range" class="test-sens-slider" id="testSensSlider" min="25" max="300" step="5" value="100" aria-label="마우스 감도" />
-                  <output class="test-sens-value" id="testSensValue" for="testSensSlider">100%</output>
+                  <input type="range" class="test-sens-slider" id="testSensSlider" min="0.01" max="10" step="0.01" value="1" aria-label="마우스 감도 (발로란트)" />
+                  <output class="test-sens-value" id="testSensValue" for="testSensSlider">1.00</output>
                 </div>
+                <p class="test-sens-hint">발로란트 감도와 동일 (0.01–10, 기본 1.00)</p>
               </div>
               <div class="test-settings-block test-settings-block-actions">
                 <h3 class="test-section-label">조작</h3>
@@ -141,6 +142,6 @@
   <script src="baas-config.js"></script>
   <script src="preview.js"></script>
   <script src="auth.js?v=supabase-auth-2"></script>
-  <script src="test.js?v=aim-range-12"></script>
+  <script src="test.js?v=aim-range-15"></script>
 </body>
 </html>
