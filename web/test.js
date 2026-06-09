@@ -776,31 +776,49 @@ function rayHitSphereDetailed(ray, target) {
   };
 }
 
-function humanScreenBounds(target, bodyP) {
-  const s = bodyP.scale;
-  const bodyH = Math.max(36, target.bodyH * s);
-  const bodyW = Math.max(18, target.bodyW * s);
-  const headR = Math.max(10, target.headR * s);
+function getHumanSilhouetteLayout(bodyP) {
+  const sc = bodyP.scale;
+  const totalH = Math.max(56, HUMAN.height * sc);
   const cx = bodyP.sx;
-  const footY = bodyP.sy + bodyH * 0.42;
-  const bodyTop = footY - bodyH;
-  const headCy = bodyTop - headR * 0.85;
-  return { cx, bodyTop, footY, bodyW, bodyH, headR, headCy };
+  const footY = bodyP.sy + totalH * 0.04;
+  const torsoH = totalH * 0.58;
+  const torsoW = totalH * 0.36;
+  const torsoBottom = footY - totalH * 0.03;
+  const torsoTop = torsoBottom - torsoH;
+  const headRy = totalH * 0.105;
+  const headRx = totalH * 0.088;
+  const headCy = torsoTop - headRy * 0.62;
+  const bodyLeft = cx - torsoW / 2;
+  const bodyCy = (torsoTop + torsoBottom) / 2;
+  return {
+    cx,
+    totalH,
+    headRx,
+    headRy,
+    headCy,
+    torsoTop,
+    torsoBottom,
+    torsoW,
+    torsoH,
+    bodyLeft,
+    bodyCy,
+    scoreRx: torsoW * 0.44,
+    scoreRy: torsoH * 0.5,
+  };
 }
 
-function classifyHumanHit(sx, sy, b) {
-  if (Math.hypot(sx - b.cx, sy - b.headCy) <= b.headR * 1.25) return "head";
-  const halfW = b.bodyW * 0.58;
-  if (sx >= b.cx - halfW && sx <= b.cx + halfW && sy >= b.bodyTop && sy <= b.footY) return "body";
-  const shHalf = b.bodyW * 0.72;
-  const shTop = b.bodyTop + b.bodyH * 0.08;
-  const shBot = shTop + b.bodyH * 0.2;
-  if (sx >= b.cx - shHalf && sx <= b.cx + shHalf && sy >= shTop && sy <= shBot) return "body";
+function classifyHumanHit(sx, sy, layout) {
+  const { cx, headRx, headRy, headCy, bodyLeft, torsoTop, torsoW, torsoBottom } = layout;
+  const headPad = 1.06;
+  const inHead =
+    ((sx - cx) ** 2) / (headRx * headPad) ** 2 + ((sy - headCy) ** 2) / (headRy * headPad) ** 2 <= 1;
+  if (inHead) return "head";
+  if (sx >= bodyLeft && sx <= bodyLeft + torsoW && sy >= torsoTop && sy <= torsoBottom) return "body";
   return null;
 }
 
-function pointInHumanScreen(sx, sy, b) {
-  return classifyHumanHit(sx, sy, b) !== null;
+function pointInHumanScreen(sx, sy, layout) {
+  return classifyHumanHit(sx, sy, layout) !== null;
 }
 
 function rayHitHumanDetailed(ray, target, viewW, viewH) {
@@ -812,7 +830,7 @@ function rayHitHumanDetailed(ray, target, viewW, viewH) {
   const hitScreen = worldToScreen(wx, wy, target.z, viewW, viewH);
   const bodyScreen = worldToScreen(target.x, target.y, target.z, viewW, viewH);
   if (!hitScreen || !bodyScreen) return { hit: false };
-  const bounds = humanScreenBounds(target, bodyScreen);
+  const bounds = getHumanSilhouetteLayout(bodyScreen);
   const hitZone = classifyHumanHit(hitScreen.sx, hitScreen.sy, bounds);
   if (!hitZone) return { hit: false };
   return { hit: true, hitZone, t, x: wx, y: wy, z: target.z };
@@ -1092,17 +1110,6 @@ function drawFpsScene(ctx, w, h) {
   }
 }
 
-function drawTargetPad(ctx, t, w, h) {
-  const base = worldToScreen(t.x, FLOOR_Y, t.z, w, h);
-  if (!base) return;
-  const padW = Math.max(36, 64 * base.scale);
-  const padH = Math.max(6, 10 * base.scale);
-  ctx.fillStyle = "rgba(249, 158, 26, 0.9)";
-  ctx.fillRect(base.sx - padW / 2, base.sy - padH + 2, padW, padH);
-  ctx.fillStyle = "#2e3138";
-  ctx.fillRect(base.sx - Math.max(2, 3 * base.scale), base.sy - padH + 2, Math.max(4, 6 * base.scale), padH);
-}
-
 function roundRectPath(ctx, x, y, rw, rh, rad) {
   const r = Math.min(rad, rw / 2, rh / 2);
   ctx.beginPath();
@@ -1118,6 +1125,53 @@ function roundRectPath(ctx, x, y, rw, rh, rad) {
   ctx.closePath();
 }
 
+function drawTargetStand(ctx, t, w, h, layout, padBase) {
+  if (!padBase) return;
+  ctx.strokeStyle = "#3a3428";
+  ctx.lineWidth = Math.max(2, layout.totalH * 0.012);
+  ctx.beginPath();
+  ctx.moveTo(layout.cx, padBase.sy - 4);
+  ctx.lineTo(layout.cx, layout.torsoBottom + layout.totalH * 0.02);
+  ctx.stroke();
+  const padW = Math.max(28, layout.totalH * 0.22);
+  ctx.fillStyle = "#2a2620";
+  ctx.fillRect(layout.cx - padW / 2, padBase.sy - 6, padW, Math.max(5, layout.totalH * 0.025));
+}
+
+function drawScoringRings(ctx, layout) {
+  const { cx, bodyCy, scoreRx, scoreRy, totalH } = layout;
+  const rings = [
+    { label: "6", scale: 1.0 },
+    { label: "7", scale: 0.82 },
+    { label: "8", scale: 0.64 },
+    { label: "9", scale: 0.46 },
+    { label: "X", scale: 0.28 },
+  ];
+  const lw = Math.max(1, totalH * 0.007);
+  ctx.strokeStyle = "rgba(255,255,255,0.88)";
+  ctx.lineWidth = lw;
+  for (const ring of rings) {
+    ctx.beginPath();
+    ctx.ellipse(cx, bodyCy, scoreRx * ring.scale, scoreRy * ring.scale, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  const fontSize = Math.max(7, totalH * 0.065);
+  ctx.fillStyle = "rgba(255,255,255,0.95)";
+  ctx.font = `700 ${fontSize}px var(--font, sans-serif)`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("X", cx, bodyCy);
+  for (const ring of rings.slice(0, 4)) {
+    const rx = scoreRx * ring.scale;
+    const ry = scoreRy * ring.scale;
+    ctx.font = `600 ${Math.max(6, fontSize * 0.72)}px var(--font, sans-serif)`;
+    ctx.fillText(ring.label, cx, bodyCy - ry * 0.55);
+    ctx.fillText(ring.label, cx, bodyCy + ry * 0.55);
+    ctx.fillText(ring.label, cx - rx * 0.55, bodyCy);
+    ctx.fillText(ring.label, cx + rx * 0.55, bodyCy);
+  }
+}
+
 function drawHumanTarget(ctx, t, w, h) {
   if (t.type === "wall") {
     drawWallTarget(ctx, t, w, h);
@@ -1129,98 +1183,38 @@ function drawHumanTarget(ctx, t, w, h) {
   const bodyP = worldToScreen(t.x, t.y, t.z, w, h);
   if (!bodyP || bodyP.sx < -160 || bodyP.sx > w + 160 || bodyP.sy < -160 || bodyP.sy > h + 160) return;
 
-  const sc = bodyP.scale;
-  const bodyW = Math.max(18, t.bodyW * sc);
-  const bodyH = Math.max(36, t.bodyH * sc);
-  const headR = Math.max(10, t.headR * sc);
-  const cx = bodyP.sx;
-  const footY = bodyP.sy + bodyH * 0.42;
-  const bodyTop = footY - bodyH;
-  const headCy = bodyTop - headR * 0.85;
-  const lw = Math.max(1.5, 2 * sc);
+  const layout = getHumanSilhouetteLayout(bodyP);
+  const { cx, headRx, headRy, headCy, bodyLeft, torsoTop, torsoW, torsoH } = layout;
   const padBase = worldToScreen(t.x, FLOOR_Y, t.z, w, h);
 
-  drawTargetPad(ctx, t, w, h);
+  drawTargetStand(ctx, t, w, h, layout, padBase);
 
   ctx.save();
-  ctx.globalAlpha = t.hit ? Math.max(0.25, t.hitFlash * 0.7) : 1;
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
+  ctx.globalAlpha = t.hit ? Math.max(0.3, t.hitFlash * 0.75) : 1;
 
-  if (padBase) {
-    ctx.strokeStyle = "#35353a";
-    ctx.lineWidth = Math.max(2.5, 3.5 * sc);
-    ctx.beginPath();
-    ctx.moveTo(cx, padBase.sy - 6);
-    ctx.lineTo(cx, footY + bodyH * 0.04);
-    ctx.stroke();
-  }
-
-  const legW = bodyW * 0.24;
-  const legH = bodyH * 0.3;
-  const legTop = footY - legH;
-  ctx.fillStyle = "#b83824";
-  ctx.fillRect(cx - bodyW * 0.3, legTop, legW, legH);
-  ctx.fillRect(cx + bodyW * 0.06, legTop, legW, legH);
-
-  const torsoX = cx - bodyW * 0.52;
-  const torsoY = bodyTop + bodyH * 0.1;
-  const torsoW = bodyW * 1.04;
-  const torsoH = bodyH * 0.52;
-  const torsoGrad = ctx.createLinearGradient(cx, torsoY, cx, torsoY + torsoH);
-  torsoGrad.addColorStop(0, "#ff7049");
-  torsoGrad.addColorStop(1, "#d93a22");
-  ctx.fillStyle = torsoGrad;
-  roundRectPath(ctx, torsoX, torsoY, torsoW, torsoH, bodyW * 0.14);
+  ctx.fillStyle = "#567a30";
+  ctx.beginPath();
+  ctx.ellipse(cx, headCy, headRx, headRy, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "#8f2615";
-  ctx.lineWidth = lw;
+  roundRectPath(ctx, bodyLeft, torsoTop, torsoW, torsoH, torsoW * 0.14);
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(35, 50, 20, 0.55)";
+  ctx.lineWidth = Math.max(1, layout.totalH * 0.008);
+  ctx.beginPath();
+  ctx.ellipse(cx, headCy, headRx, headRy, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  roundRectPath(ctx, bodyLeft, torsoTop, torsoW, torsoH, torsoW * 0.14);
   ctx.stroke();
 
-  ctx.fillStyle = "#ff7049";
-  roundRectPath(ctx, cx - bodyW * 0.66, bodyTop + bodyH * 0.06, bodyW * 1.32, bodyH * 0.16, bodyW * 0.08);
-  ctx.fill();
-  ctx.strokeStyle = "#8f2615";
-  ctx.stroke();
-
-  const bullCy = bodyTop + bodyH * 0.3;
-  const bullR = bodyW * 0.24;
-  ctx.fillStyle = "#fff6ee";
-  ctx.beginPath();
-  ctx.arc(cx, bullCy, bullR, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#2a2a2e";
-  ctx.lineWidth = lw * 0.75;
-  ctx.stroke();
-  ctx.fillStyle = "#f99e1a";
-  ctx.beginPath();
-  ctx.arc(cx, bullCy, bullR * 0.58, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#fff";
-  ctx.beginPath();
-  ctx.arc(cx, bullCy, bullR * 0.22, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#3a4048";
-  ctx.beginPath();
-  ctx.arc(cx, headCy, headR, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#1e2126";
-  ctx.lineWidth = lw;
-  ctx.stroke();
-  ctx.fillStyle = "#4ebabf";
-  roundRectPath(ctx, cx - headR * 0.68, headCy - headR * 0.14, headR * 1.36, headR * 0.3, headR * 0.08);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.28)";
-  ctx.lineWidth = lw * 0.65;
-  ctx.beginPath();
-  ctx.arc(cx, headCy, headR * 1.12, 0, Math.PI * 2);
-  ctx.stroke();
+  drawScoringRings(ctx, layout);
 
   if (t.hit && t.hitFlash > 0) {
-    ctx.fillStyle = `rgba(255, 255, 255, ${t.hitFlash * 0.55})`;
+    ctx.fillStyle = `rgba(255, 255, 255, ${t.hitFlash * 0.45})`;
     ctx.beginPath();
-    ctx.arc(cx, headCy, headR * 2.4, 0, Math.PI * 2);
+    ctx.ellipse(cx, headCy, headRx * 1.6, headRy * 1.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    roundRectPath(ctx, bodyLeft - 4, torsoTop - 4, torsoW + 8, torsoH + 8, torsoW * 0.14);
     ctx.fill();
   }
 
