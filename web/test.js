@@ -59,6 +59,7 @@ const TARGET_STYLE = {
   fill: "#2e3648",
   stroke: "#4ebabf",
 };
+const TARGET_SPEED_MIN = 55;
 const TARGET_SPEED_MAX = 270;
 
 function pickTargetSpeed() {
